@@ -48,7 +48,9 @@ export default function Demo(
   const [sendNotificationResult, setSendNotificationResult] = useState("");
 
   useEffect(() => {
-    setNotificationDetails(context?.client.notificationDetails ?? null);
+    if (context && context.client) {
+      setNotificationDetails(context.client.notificationDetails ?? null);
+    }
   }, [context]);
 
   const { address, isConnected } = useAccount();
