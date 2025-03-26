@@ -294,18 +294,223 @@ connect({ connector: config.connectors[0] });
 sendTransaction({ ... });
 ```
 
-## ⚠️ Important Notes
+## 🪙 Zora Integration
 
-1. **Security Considerations**
-- Frame context data in v2 preview is unauthenticated
-- Implement proper validation for production use
-- Handle wallet interactions securely
+### Overview
+This project integrates Zora's Coins SDK with Farcaster Frames v2 to enable interactive token experiences directly within Farcaster clients. Users can create, trade, and interact with Zora tokens through frame interactions.
 
-2. **Best Practices**
-- Always call `ready()` when frame is initialized
-- Handle errors gracefully
-- Implement proper loading states
-- Follow Farcaster's frame guidelines
+### Key Integration Points
+
+1. **Token Creation**
+```typescript
+import { createCoin } from "@zoralabs/coins-sdk";
+
+// Frame handler for coin creation
+async function handleCreateCoin(frameContext) {
+  const createCoinParams = {
+    name: "FrameCoin",
+    symbol: "FRAME",
+    uri: "ipfs://metadata-uri",
+    payoutRecipient: frameContext.walletAddress,
+  };
+  
+  return createCoin(createCoinParams, walletClient, publicClient);
+}
+```
+
+2. **Token Trading**
+```typescript
+import { tradeCoin } from "@zoralabs/coins-sdk";
+
+// Frame handler for trading
+async function handleTrade(frameContext) {
+  const tradeParams = {
+    direction: "buy",
+    target: "0xTargetCoinAddress",
+    args: {
+      recipient: frameContext.walletAddress,
+      orderSize: 1000n,
+    },
+  };
+  
+  return tradeCoin(tradeParams, walletClient, publicClient);
+}
+```
+
+3. **Token Information Display**
+```typescript
+import { getCoin } from "@zoralabs/coins-sdk";
+
+// Frame handler for displaying token info
+async function handleTokenInfo(frameContext) {
+  const tokenDetails = await getCoin({
+    address: "0xTokenAddress",
+    chain: 8453 // Base chain
+  });
+  
+  return {
+    image: tokenDetails.zora20Token?.media?.previewImage,
+    title: tokenDetails.zora20Token?.name,
+    description: tokenDetails.zora20Token?.description
+  };
+}
+```
+
+### Frame-Specific Features
+
+1. **Interactive Token Creation**
+   - Users can create new tokens directly through frame interactions
+   - Metadata and parameters can be set via frame button actions
+   - Automatic wallet connection handling
+
+2. **Trading Interface**
+   - Buy/sell functionality through frame buttons
+   - Real-time price updates
+   - Transaction status feedback
+
+3. **Token Information Display**
+   - Dynamic token metadata rendering
+   - Price and market cap information
+   - Trading volume statistics
+
+### Best Practices
+
+1. **Error Handling**
+```typescript
+try {
+  const result = await handleTrade(frameContext);
+  // Handle success
+} catch (error) {
+  if (error.code === 'user_rejected') {
+    return {
+      image: '/error.png',
+      title: 'Transaction Cancelled',
+      description: 'User rejected the transaction'
+    };
+  }
+  // Handle other errors
+}
+```
+
+2. **State Management**
+   - Use frame state to track transaction progress
+   - Implement proper loading states
+   - Handle wallet connection status
+
+3. **Security Considerations**
+   - Validate all frame context data
+   - Implement proper error boundaries
+   - Handle wallet interactions securely
+
+### Example Implementation
+
+```typescript
+import { createCoin, tradeCoin, getCoin } from "@zoralabs/coins-sdk";
+import { useFrame } from "@farcaster/frame-sdk";
+
+export function ZoraFrame() {
+  const frame = useFrame();
+  
+  const handleFrameAction = async (action) => {
+    switch (action.type) {
+      case 'create_token':
+        return handleCreateCoin(frame.context);
+      case 'trade':
+        return handleTrade(frame.context);
+      case 'view_info':
+        return handleTokenInfo(frame.context);
+      default:
+        return null;
+    }
+  };
+  
+  return (
+    <Frame>
+      {/* Frame UI components */}
+    </Frame>
+  );
+}
+```
+
+## 📘 Zora SDK Documentation
+
+### Overview
+The `@zoralabs/coins-sdk` package is currently a prerelease SDK based on viem v2. It exposes functions for both direct blockchain interactions and API queries.
+
+### Onchain Actions
+
+These functions interact directly with the blockchain and require transaction signing:
+
+#### 1. `createCoin`
+Creates a new coin with the given parameters.
+
+**Key Parameters:**
+- `name`: The name of the new coin
+- `symbol`: The symbol for the new coin
+- `uri`: The URI for the coin metadata
+- `owners`: An array of owner addresses (Optional)
+- `payoutRecipient`: The address that will receive the payout
+- `platformReferrer`: The referrer address for platform fees (Optional)
+- `initialPurchaseWei`: The initial purchase amount in Wei (Optional)
+
+#### 2. `tradeCoin`
+Buys or sells an existing coin.
+
+**Key Parameters:**
+- `direction`: 'buy' or 'sell'
+- `target`: Target coin contract address
+- `args`:
+  - `recipient`: Trade output recipient
+  - `orderSize`: Order size
+  - `minAmountOut`: Minimum output amount (Optional)
+  - `sqrtPriceLimitX96`: Price limit (Optional)
+  - `tradeReferrer`: Trade referrer address (Optional)
+
+#### 3. `updateCoinURI`
+Updates the URI for an existing coin.
+
+**Key Parameters:**
+- `coin`: Coin contract address
+- `newURI`: New URI (must start with "ipfs://")
+
+### API Queries
+
+#### API Key Setup
+```typescript
+setApiKey("your-api-key");  // Higher rate limits with API key
+```
+
+#### Pagination Support
+Many queries support cursor-based pagination:
+```typescript
+// First page
+const firstPage = await getCoinsTopGainers({ count: 10 });
+const nextCursor = firstPage.exploreList?.pageInfo?.endCursor;
+
+// Next page
+if (nextCursor) {
+  const nextPage = await getCoinsTopGainers({
+    count: 10,
+    after: nextCursor
+  });
+}
+```
+
+#### Available Queries
+
+1. **getCoin**: Get specific coin details
+2. **getCoins**: Get multiple coins' details
+3. **getCoinComments**: Get coin comments
+4. **getProfile**: Get profile information
+5. **getProfileOwned**: Get profile-owned coins
+6. **getCoinsTopGainers**: Get top gaining coins
+7. **getCoinsTopVolume24h**: Get highest 24h volume
+8. **getCoinsMostValuable**: Get most valuable coins
+9. **getCoinsNew**: Get newly created coins
+10. **getCoinsLastTraded**: Get recently traded coins
+11. **getCoinsLastTradedUnique**: Get unique recently traded coins
+
+For detailed query parameters and return types, please refer to the [Zora SDK Documentation](https://docs.zora.co/docs/smart-contracts/zora-coins-sdk).
 
 ## 📚 Resources
 

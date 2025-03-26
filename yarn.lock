@@ -167,6 +167,11 @@
   resolved "https://registry.yarnpkg.com/@farcaster/frame-wagmi-connector/-/frame-wagmi-connector-0.0.19.tgz#e39be5ab32f63c32aee37e116e4db57898ab2db1"
   integrity sha512-Ey9lEEk4SudkOiTtqY2eMGVTFZwW1lLMEtnAYqb7dCc/mDQowj3GfxNW9a2bdPoq5UEwAwJxxLiVvdERI+Hy3A==
 
+"@hey-api/client-fetch@^0.8.3":
+  version "0.8.3"
+  resolved "https://registry.yarnpkg.com/@hey-api/client-fetch/-/client-fetch-0.8.3.tgz#704adf5a4813e8181daa983a0f1e6c72a8128b01"
+  integrity sha512-EBVa8wwUMyBSeQ32PtCz6u5bFQZIMAufvwCT1ZtpjqT3caJQEza4NokbGU50q1ZVrMsM5Ot6GuDNJOF3TMo26Q==
+
 "@humanwhocodes/config-array@^0.13.0":
   version "0.13.0"
   resolved "https://registry.yarnpkg.com/@humanwhocodes/config-array/-/config-array-0.13.0.tgz#fb907624df3256d04b9aa2df50d7aa97ec648748"
@@ -748,6 +753,16 @@
   version "1.0.39"
   resolved "https://registry.yarnpkg.com/@nolyfill/is-core-module/-/is-core-module-1.0.39.tgz#3dc35ba0f1e66b403c00b39344f870298ebb1c8e"
   integrity sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==
+
+"@openzeppelin/contracts-upgradeable@^5.0.2":
+  version "5.2.0"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts-upgradeable/-/contracts-upgradeable-5.2.0.tgz#caf9a6eaf4f16d7f90f9b45a6db4e7b125f4b13b"
+  integrity sha512-mZIu9oa4tQTlGiOJHk6D3LdJlqFqF6oNOSn6S6UVJtzfs9UsY9/dhMEbAVTwElxUtJnjpf6yA062+oBp+eOyPg==
+
+"@openzeppelin/contracts@^5.0.2":
+  version "5.2.0"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-5.2.0.tgz#bd020694218202b811b0ea3eec07277814c658da"
+  integrity sha512-bxjNie5z89W1Ea0NZLZluFh8PrFNn9DH8DQlujEok2yjsOlraUPKID5p1Wk3qdNbf6XkQ1Os2RvfiHrrXLHWKA==
 
 "@panva/hkdf@^1.0.2":
   version "1.2.1"
@@ -1630,12 +1645,28 @@
     "@walletconnect/window-getters" "^1.0.1"
     tslib "1.14.1"
 
+"@zoralabs/coins-sdk@0.0.2-sdkalpha.7":
+  version "0.0.2-sdkalpha.7"
+  resolved "https://registry.yarnpkg.com/@zoralabs/coins-sdk/-/coins-sdk-0.0.2-sdkalpha.7.tgz#58ce3952612b514a5933087f2009ceb4b27a7040"
+  integrity sha512-Njhcfn1iSa2asckOue7SyiGl/Invb6TOAixO3WnXi4+S55J0rpTmDjQNu/L4mq1geuyQfb+A+8/xqpTfYjNS+g==
+  dependencies:
+    "@hey-api/client-fetch" "^0.8.3"
+    "@zoralabs/coins" "^0.5.1-sdkalpha.0"
+
+"@zoralabs/coins@^0.5.1-sdkalpha.0":
+  version "0.5.1-sdkalpha.0"
+  resolved "https://registry.yarnpkg.com/@zoralabs/coins/-/coins-0.5.1-sdkalpha.0.tgz#d66bb4cbe0ab010bfb4a2fd8cb216a04db5ddf86"
+  integrity sha512-APEzAzA+q7w1r9KPcmmAPWQLai20dEo+iEqBBwi3UnyIOd0CxJKVnD2ily8j8PXlapE1r0NRuFtrJVOzXQyMNQ==
+  dependencies:
+    "@openzeppelin/contracts" "^5.0.2"
+    "@openzeppelin/contracts-upgradeable" "^5.0.2"
+
 abitype@1.0.6:
   version "1.0.6"
   resolved "https://registry.yarnpkg.com/abitype/-/abitype-1.0.6.tgz#76410903e1d88e34f1362746e2d407513c38565b"
   integrity sha512-MMSqYh4+C/aVqI2RQaWqbvI4Kxo5cQV40WQ4QFtDnNzCkqChm8MuENhElmynZlO0qUy/ObkEUaXtKqYnx1Kp3A==
 
-abitype@1.0.8:
+abitype@1.0.8, abitype@^1.0.8:
   version "1.0.8"
   resolved "https://registry.yarnpkg.com/abitype/-/abitype-1.0.8.tgz#3554f28b2e9d6e9f35eb59878193eabd1b9f46ba"
   integrity sha512-ZeiI6h3GnW06uYDLx0etQtX/p8E24UaHHBj57RSjK7YBFe7iuVn07EDpOeP451D06sF27VOz9JJPlIKJmXgkEg==

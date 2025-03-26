@@ -19,16 +19,20 @@ import {
   useConnect,
   useSwitchChain,
   useChainId,
+  useWalletClient,
+  useBalance,
 } from "wagmi";
 
 import { config } from "~/components/providers/WagmiProvider";
 import { Button } from "~/components/ui/Button";
 import { truncateAddress } from "~/lib/truncateAddress";
 import { base, degen, mainnet, optimism, unichain } from "wagmi/chains";
-import { BaseError, UserRejectedRequestError } from "viem";
+import { BaseError, UserRejectedRequestError, parseEther, formatEther } from "viem";
 import { useSession } from "next-auth/react";
 import { createStore } from "mipd";
 import { Label } from "~/components/ui/label";
+import { useZoraCoin } from "~/components/hooks/useZoraCoin";
+import { formatCurrency, formatNumber, parseZoraError } from "~/lib/utils";
 
 export default function Demo(
   { title }: { title?: string } = { title: "Frames v2 Demo" }
@@ -37,21 +41,14 @@ export default function Demo(
   const [context, setContext] = useState<Context.FrameContext>();
   const [isContextOpen, setIsContextOpen] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
-
   const [added, setAdded] = useState(false);
-  const [notificationDetails, setNotificationDetails] =
-    useState<FrameNotificationDetails | null>(null);
-
+  const [notificationDetails, setNotificationDetails] = useState<FrameNotificationDetails | null>(null);
   const [lastEvent, setLastEvent] = useState("");
-
   const [addFrameResult, setAddFrameResult] = useState("");
   const [sendNotificationResult, setSendNotificationResult] = useState("");
-
-  useEffect(() => {
-    if (context && context.client) {
-      setNotificationDetails(context.client.notificationDetails ?? null);
-    }
-  }, [context]);
+  const [error, setError] = useState<string | null>(null);
+  const [buyAmount, setBuyAmount] = useState<string>('');
+  const [sellAmount, setSellAmount] = useState<string>('');
 
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -103,60 +100,122 @@ export default function Demo(
     switchChain({ chainId: nextChain.id });
   }, [switchChain, nextChain.id]);
 
+  // Zora integration
+  const targetCoinAddress = "0xdcb492364375a425547fedd3bbe66904994c6182" as `0x${string}`;
+  const { data: walletClient } = useWalletClient();
+  const {
+    coinDetails,
+    isLoading: isZoraLoading,
+    error: zoraError,
+    getCoinInfo,
+    trade
+  } = useZoraCoin(targetCoinAddress);
+
+  // Get ETH balance
+  const { data: ethBalance } = useBalance({
+    address: address as `0x${string}`,
+  });
+
+  // Load coin info when wallet is connected
+  useEffect(() => {
+    if (isConnected) {
+      getCoinInfo();
+    }
+  }, [isConnected, getCoinInfo]);
+
+  // Debug coin details
+  useEffect(() => {
+    if (coinDetails) {
+      console.log('Coin Details:', coinDetails);
+      console.log('Media:', coinDetails.media);
+    }
+  }, [coinDetails]);
+
+  const handleBuy = useCallback(async () => {
+    if (!walletClient || !buyAmount) return;
+    try {
+      const amountInWei = parseEther(buyAmount);
+      await trade('buy', amountInWei, walletClient);
+      setBuyAmount('');
+      getCoinInfo();
+    } catch (error) {
+      console.error("Error buying coin:", error);
+      setError(parseZoraError(error));
+    }
+  }, [walletClient, trade, getCoinInfo, buyAmount]);
+
+  const handleSell = useCallback(async () => {
+    if (!walletClient || !sellAmount) return;
+    try {
+      const amount = BigInt(parseFloat(sellAmount));
+      await trade('sell', amount, walletClient);
+      setSellAmount('');
+      getCoinInfo();
+    } catch (error) {
+      console.error("Error selling coin:", error);
+      setError(parseZoraError(error));
+    }
+  }, [walletClient, trade, getCoinInfo, sellAmount]);
+
   useEffect(() => {
     const load = async () => {
-      const context = await sdk.context;
-      setContext(context);
-      setAdded(context.client.added);
-
-      sdk.on("frameAdded", ({ notificationDetails }) => {
-        setLastEvent(
-          `frameAdded${!!notificationDetails ? ", notifications enabled" : ""}`
-        );
-
-        setAdded(true);
-        if (notificationDetails) {
-          setNotificationDetails(notificationDetails);
+      try {
+        const context = await sdk.context;
+        setContext(context);
+        
+        if (context?.client) {
+          setAdded(context.client.added);
+          setNotificationDetails(context.client.notificationDetails ?? null);
         }
-      });
 
-      sdk.on("frameAddRejected", ({ reason }) => {
-        setLastEvent(`frameAddRejected, reason ${reason}`);
-      });
+        sdk.on("frameAdded", ({ notificationDetails }) => {
+          setLastEvent(
+            `frameAdded${!!notificationDetails ? ", notifications enabled" : ""}`
+          );
 
-      sdk.on("frameRemoved", () => {
-        setLastEvent("frameRemoved");
-        setAdded(false);
-        setNotificationDetails(null);
-      });
+          setAdded(true);
+          if (notificationDetails) {
+            setNotificationDetails(notificationDetails);
+          }
+        });
 
-      sdk.on("notificationsEnabled", ({ notificationDetails }) => {
-        setLastEvent("notificationsEnabled");
-        setNotificationDetails(notificationDetails);
-      });
-      sdk.on("notificationsDisabled", () => {
-        setLastEvent("notificationsDisabled");
-        setNotificationDetails(null);
-      });
+        sdk.on("frameAddRejected", ({ reason }) => {
+          setLastEvent(`frameAddRejected, reason ${reason}`);
+        });
 
-      sdk.on("primaryButtonClicked", () => {
-        console.log("primaryButtonClicked");
-      });
+        sdk.on("frameRemoved", () => {
+          setLastEvent("frameRemoved");
+          setAdded(false);
+          setNotificationDetails(null);
+        });
 
-      console.log("Calling ready");
-      sdk.actions.ready({});
+        sdk.on("notificationsEnabled", ({ notificationDetails }) => {
+          setLastEvent("notificationsEnabled");
+          setNotificationDetails(notificationDetails);
+        });
+        
+        sdk.on("notificationsDisabled", () => {
+          setLastEvent("notificationsDisabled");
+          setNotificationDetails(null);
+        });
 
-      // Set up a MIPD Store, and request Providers.
-      const store = createStore();
+        sdk.on("primaryButtonClicked", () => {
+          console.log("primaryButtonClicked");
+        });
 
-      // Subscribe to the MIPD Store.
-      store.subscribe((providerDetails) => {
-        console.log("PROVIDER DETAILS", providerDetails);
-        // => [EIP6963ProviderDetail, EIP6963ProviderDetail, ...]
-      });
+        console.log("Calling ready");
+        sdk.actions.ready({});
+
+        const store = createStore();
+        store.subscribe((providerDetails) => {
+          console.log("PROVIDER DETAILS", providerDetails);
+        });
+      } catch (error) {
+        console.error("Error loading SDK:", error);
+      }
     };
+
     if (sdk && !isSDKLoaded) {
-      console.log("Calling load");
       setIsSDKLoaded(true);
       load();
       return () => {
@@ -239,7 +298,6 @@ export default function Demo(
   const sendTx = useCallback(() => {
     sendTransaction(
       {
-        // call yoink() on Yoink contract
         to: "0x4bBFD120d9f352A0BEd7a014bd67913a2007a878",
         data: "0x9846cd9efc000023c0",
       },
@@ -277,17 +335,114 @@ export default function Demo(
   }
 
   return (
-    <div
-      style={{
-        paddingTop: context?.client.safeAreaInsets?.top ?? 0,
-        paddingBottom: context?.client.safeAreaInsets?.bottom ?? 0,
-        paddingLeft: context?.client.safeAreaInsets?.left ?? 0,
-        paddingRight: context?.client.safeAreaInsets?.right ?? 0,
-      }}
-    >
-      <div className="w-[300px] mx-auto py-2 px-2">
-        <h1 className="text-2xl font-bold text-center mb-4">{title}</h1>
+    <div className="w-[300px] mx-auto py-4 px-2">
+      <h1 className="text-2xl font-bold text-center mb-4">{title}</h1>
+      
+      {/* Zora Coin Section */}
+      <div className="mb-8 p-4 border rounded-lg">
+        <h2 className="text-xl font-bold mb-4">Zora Coin Trading</h2>
+        
+        <div className="mb-4">
+          <Button
+            onClick={() =>
+              isConnected
+                ? disconnect()
+                : connect({ connector: config.connectors[0] })
+            }
+          >
+            {isConnected ? 'Disconnect' : 'Connect'}
+          </Button>
+        </div>
 
+        {isConnected && (
+          <div className="mb-4 p-2 bg-gray-50 rounded">
+            <p className="text-sm">
+              Your Balance: {ethBalance ? `${formatEther(ethBalance.value)} ETH` : 'Loading...'}
+            </p>
+          </div>
+        )}
+
+        {isConnected && coinDetails && (
+          <div className="mt-4">
+            {coinDetails.mediaContent?.previewImage?.small && (
+              <div className="mb-4 flex justify-center">
+                <img 
+                  src={coinDetails.mediaContent.previewImage.small} 
+                  alt={coinDetails.name}
+                  className="w-24 h-24 rounded-lg object-cover bg-gray-100"
+                />
+              </div>
+            )}
+            
+            <div className="my-2 space-y-1">
+              <p>Market Cap: {formatCurrency(coinDetails.marketCap)}</p>
+              <p>Total Supply: {formatNumber(coinDetails.totalSupply)}</p>
+              <p>Volume (24h): {formatCurrency(coinDetails.volume24h)}</p>
+            </div>
+            
+            <div className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label htmlFor="buyAmount">Buy Amount (ETH)</Label>
+                <Input
+                  id="buyAmount"
+                  type="number"
+                  step="0.0001"
+                  min="0"
+                  value={buyAmount}
+                  onChange={(e) => setBuyAmount(e.target.value)}
+                  placeholder="0.01"
+                  className="w-full mb-2"
+                />
+                <Button 
+                  onClick={handleBuy} 
+                  disabled={isZoraLoading || !buyAmount}
+                  className="w-full"
+                >
+                  Buy
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="sellAmount">Sell Amount (Tokens)</Label>
+                <Input
+                  id="sellAmount"
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={sellAmount}
+                  onChange={(e) => setSellAmount(e.target.value)}
+                  placeholder="1"
+                  className="w-full mb-2"
+                />
+                <Button 
+                  onClick={handleSell} 
+                  disabled={isZoraLoading || !sellAmount}
+                  className="w-full"
+                >
+                  Sell
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {isZoraLoading && (
+          <div className="text-center mt-4">Loading...</div>
+        )}
+        
+        {zoraError && (
+          <div className="mt-4 p-2 bg-red-100 text-red-700 rounded">
+            Error: {zoraError.message}
+          </div>
+        )}
+        
+        {isConnected && !coinDetails && !isZoraLoading && !zoraError && (
+          <div className="text-center mt-4">No coin data available</div>
+        )}
+      </div>
+
+      {/* Original Demo Content */}
+      <div className="space-y-4">
         <div className="mb-4">
           <h2 className="font-2xl font-bold">Context</h2>
           <button
@@ -555,7 +710,6 @@ function SendEth() {
     });
 
   const toAddr = useMemo(() => {
-    // Protocol guild address
     return chainId === base.id
       ? "0x32e3C7fD24e175701A35c224f2238d18439C7dBC"
       : "0xB3d8d7887693a9852734b4D25e9C0Bb35Ba8a830";
