@@ -36,7 +36,7 @@ import { useZoraCoin } from "~/components/hooks/useZoraCoin";
 import { formatCurrency, formatNumber, parseZoraError } from "~/lib/utils";
 
 // Add animation styles
-const slideUpAnimation = `
+const styles = `
 @keyframes slideUp {
   from {
     transform: translateY(100%);
@@ -90,89 +90,7 @@ export default function Demo(
   // Add style tag to head
   useEffect(() => {
     const style = document.createElement('style');
-    style.textContent = `
-      @keyframes slideUp {
-        from {
-          transform: translateY(100%);
-        }
-        to {
-          transform: translateY(0);
-        }
-      }
-
-      @keyframes slideDown {
-        from {
-          transform: translateY(0);
-        }
-        to {
-          transform: translateY(100%);
-        }
-      }
-
-      @keyframes fadeIn {
-        from {
-          background: rgba(0, 0, 0, 0);
-        }
-        to {
-          background: rgba(0, 0, 0, 0.8);
-        }
-      }
-
-      @keyframes fadeOut {
-        from {
-          background: rgba(0, 0, 0, 0.8);
-        }
-        to {
-          background: rgba(0, 0, 0, 0);
-        }
-      }
-
-      @keyframes contentIn {
-        from {
-          opacity: 0;
-          transform: scale(0.95);
-        }
-        to {
-          opacity: 1;
-          transform: scale(1);
-        }
-      }
-
-      @keyframes contentOut {
-        from {
-          opacity: 1;
-          transform: scale(1);
-        }
-        to {
-          opacity: 0;
-          transform: scale(0.95);
-        }
-      }
-
-      .slide-up {
-        animation: slideUp 300ms ease-out forwards;
-      }
-
-      .slide-down {
-        animation: slideDown 300ms ease-out forwards;
-      }
-
-      .overlay-backdrop {
-        animation: fadeOut 300ms ease-out forwards;
-      }
-
-      .overlay-backdrop.active {
-        animation: fadeIn 300ms ease-out forwards;
-      }
-
-      .overlay-content {
-        animation: contentOut 300ms ease-out forwards;
-      }
-
-      .overlay-content.active {
-        animation: contentIn 300ms ease-out forwards;
-      }
-    `;
+    style.textContent = styles;
     document.head.appendChild(style);
     return () => {
       document.head.removeChild(style);
@@ -181,13 +99,8 @@ export default function Demo(
 
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [context, setContext] = useState<Context.FrameContext>();
-  const [isContextOpen, setIsContextOpen] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
-  const [added, setAdded] = useState(false);
   const [notificationDetails, setNotificationDetails] = useState<FrameNotificationDetails | null>(null);
-  const [lastEvent, setLastEvent] = useState("");
-  const [addFrameResult, setAddFrameResult] = useState("");
-  const [sendNotificationResult, setSendNotificationResult] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isErrorVisible, setIsErrorVisible] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
@@ -248,9 +161,14 @@ export default function Demo(
     }
   }, [chainId]);
 
-  const handleSwitchChain = useCallback(() => {
-    switchChain({ chainId: nextChain.id });
-  }, [switchChain, nextChain.id]);
+  const handleSwitchChain = useCallback(async () => {
+    if (!switchChain) return;
+    try {
+      await switchChain({ chainId: nextChain.id });
+    } catch (error) {
+      console.error('Failed to switch chain:', error);
+    }
+  }, [nextChain.id, switchChain]);
 
   // Zora integration
   const targetCoinAddress = "0xdcb492364375a425547fedd3bbe66904994c6182" as `0x${string}`;
@@ -281,32 +199,23 @@ export default function Demo(
     }
   }, [coinDetails]);
 
-  const handleError = useCallback((error: Error | unknown) => {
-    console.error("Detailed error:", error);
-    setError("Error!"); // Simple message for toast
+  const handleError = useCallback((message: string) => {
+    setError(message);
     setIsErrorVisible(true);
-    // Clear error after animation
-    setTimeout(() => {
-      setIsErrorVisible(false);
-      setError(null);
-    }, 3500); // Slightly longer than animation duration
+    setTimeout(() => setIsErrorVisible(false), 3000);
   }, []);
 
   // Handle Zora errors
   useEffect(() => {
     if (zoraError) {
-      handleError(zoraError);
+      handleError(zoraError.message);
     }
   }, [zoraError, handleError]);
 
   const handleSuccess = useCallback(() => {
-    setSuccess("Success!");
+    setSuccess('Operation completed successfully');
     setIsSuccessVisible(true);
-    // Clear success after animation
-    setTimeout(() => {
-      setIsSuccessVisible(false);
-      setSuccess(null);
-    }, 3500); // Slightly longer than animation duration
+    setTimeout(() => setIsSuccessVisible(false), 3000);
   }, []);
 
   const handleBuy = useCallback(async () => {
@@ -319,7 +228,7 @@ export default function Demo(
       handleSuccess();
     } catch (error) {
       console.error("Error buying coin:", error);
-      handleError(error);
+      handleError("Error buying coin");
     }
   }, [walletClient, trade, getCoinInfo, buyAmount, handleError, handleSuccess]);
 
@@ -333,7 +242,7 @@ export default function Demo(
       handleSuccess();
     } catch (error) {
       console.error("Error selling coin:", error);
-      handleError(error);
+      handleError("Error selling coin");
     }
   }, [walletClient, trade, getCoinInfo, sellAmount, handleError, handleSuccess]);
 
@@ -360,38 +269,30 @@ export default function Demo(
         setContext(context);
         
         if (context?.client) {
-          setAdded(context.client.added);
           setNotificationDetails(context.client.notificationDetails ?? null);
         }
 
         sdk.on("frameAdded", ({ notificationDetails }) => {
-          setLastEvent(
-            `frameAdded${!!notificationDetails ? ", notifications enabled" : ""}`
-          );
-
-          setAdded(true);
           if (notificationDetails) {
             setNotificationDetails(notificationDetails);
           }
         });
 
         sdk.on("frameAddRejected", ({ reason }) => {
-          setLastEvent(`frameAddRejected, reason ${reason}`);
+          console.error("frameAddRejected, reason", reason);
         });
 
         sdk.on("frameRemoved", () => {
-          setLastEvent("frameRemoved");
-          setAdded(false);
           setNotificationDetails(null);
         });
 
         sdk.on("notificationsEnabled", ({ notificationDetails }) => {
-          setLastEvent("notificationsEnabled");
-          setNotificationDetails(notificationDetails);
+          if (notificationDetails) {
+            setNotificationDetails(notificationDetails);
+          }
         });
         
         sdk.on("notificationsDisabled", () => {
-          setLastEvent("notificationsDisabled");
           setNotificationDetails(null);
         });
 
@@ -441,26 +342,20 @@ export default function Demo(
       if (result.notificationDetails) {
         setNotificationDetails(result.notificationDetails);
       }
-      setAddFrameResult(
-        result.notificationDetails
-          ? `Added, got notificaton token ${result.notificationDetails.token} and url ${result.notificationDetails.url}`
-          : "Added, got no notification details"
-      );
     } catch (error) {
       if (error instanceof AddFrame.RejectedByUser) {
-        setAddFrameResult(`Not added: ${error.message}`);
+        console.error("Not added: ", error.message);
       }
 
       if (error instanceof AddFrame.InvalidDomainManifest) {
-        setAddFrameResult(`Not added: ${error.message}`);
+        console.error("Not added: ", error.message);
       }
 
-      setAddFrameResult(`Error: ${error}`);
+      console.error("Error: ", error);
     }
   }, []);
 
   const sendNotification = useCallback(async () => {
-    setSendNotificationResult("");
     if (!notificationDetails || !context) {
       return;
     }
@@ -477,17 +372,17 @@ export default function Demo(
       });
 
       if (response.status === 200) {
-        setSendNotificationResult("Success");
+        handleSuccess();
         return;
       } else if (response.status === 429) {
-        setSendNotificationResult("Rate limited");
+        console.error("Rate limited");
         return;
       }
 
       const data = await response.text();
-      setSendNotificationResult(`Error: ${data}`);
+      console.error("Error: ", data);
     } catch (error) {
-      setSendNotificationResult(`Error: ${error}`);
+      console.error("Error: ", error);
     }
   }, [context, notificationDetails]);
 
@@ -521,10 +416,6 @@ export default function Demo(
       primaryType: "Message",
     });
   }, [chainId, signTypedData]);
-
-  const toggleContext = useCallback(() => {
-    setIsContextOpen((prev) => !prev);
-  }, []);
 
   const toggleOverlay = useCallback(() => {
     setIsOverlayVisible(prev => !prev);

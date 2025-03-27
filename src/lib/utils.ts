@@ -28,22 +28,25 @@ export function formatNumber(value: string | number | null | undefined, decimals
   }).format(num);
 }
 
-export function parseZoraError(error: any): string {
+export function parseZoraError(error: Error | { message: string } | unknown): string {
   if (!error) return "Unknown error";
   
+  // Convert unknown error to a type we can work with
+  const errorWithMessage = error as { message?: string };
+  
   // Handle specific Zora errors
-  if (error.message && error.message.includes("insufficient")) {
+  if (errorWithMessage.message && errorWithMessage.message.includes("insufficient")) {
     return "Insufficient funds for this transaction";
   }
   
-  if (error.message && error.message.includes("slippage")) {
+  if (errorWithMessage.message && errorWithMessage.message.includes("slippage")) {
     return "Price changed too much. Try again with higher slippage tolerance";
   }
 
-  if (error.message && error.message.includes("EthAmountTooSmall")) {
+  if (errorWithMessage.message && errorWithMessage.message.includes("EthAmountTooSmall")) {
     return "ETH amount is too small. Please increase the amount you want to spend.";
   }
   
   // Return the original error message if no specific case matches
-  return error.message || "An error occurred with the Zora API";
+  return errorWithMessage.message || "An error occurred with the Zora API";
 }
