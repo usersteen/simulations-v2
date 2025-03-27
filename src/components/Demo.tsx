@@ -34,6 +34,35 @@ import { Label } from "~/components/ui/label";
 import { useZoraCoin } from "~/components/hooks/useZoraCoin";
 import { formatCurrency, formatNumber, parseZoraError } from "~/lib/utils";
 
+// Add animation styles
+const slideUpAnimation = `
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out forwards;
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.animate-fade-out {
+  animation: fadeOut 0.3s ease-out forwards;
+}
+`;
+
 export default function Demo(
   { title }: { title?: string } = { title: "Frames v2 Demo" }
 ) {
@@ -47,8 +76,14 @@ export default function Demo(
   const [addFrameResult, setAddFrameResult] = useState("");
   const [sendNotificationResult, setSendNotificationResult] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isErrorVisible, setIsErrorVisible] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [isSuccessVisible, setIsSuccessVisible] = useState(false);
   const [buyAmount, setBuyAmount] = useState<string>('');
   const [sellAmount, setSellAmount] = useState<string>('');
+  const [isOverlayVisible, setIsOverlayVisible] = useState(false);
+  const [isTradeVisible, setIsTradeVisible] = useState(false);
+  const [isBuyTab, setIsBuyTab] = useState(true);
 
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -108,7 +143,8 @@ export default function Demo(
     isLoading: isZoraLoading,
     error: zoraError,
     getCoinInfo,
-    trade
+    trade,
+    onchainDetails
   } = useZoraCoin(targetCoinAddress);
 
   // Get ETH balance
@@ -116,12 +152,10 @@ export default function Demo(
     address: address as `0x${string}`,
   });
 
-  // Load coin info when wallet is connected
+  // Load coin info when component mounts
   useEffect(() => {
-    if (isConnected) {
-      getCoinInfo();
-    }
-  }, [isConnected, getCoinInfo]);
+    getCoinInfo();
+  }, [getCoinInfo]);
 
   // Debug coin details
   useEffect(() => {
@@ -131,6 +165,34 @@ export default function Demo(
     }
   }, [coinDetails]);
 
+  const handleError = useCallback((error: any) => {
+    console.error("Detailed error:", error);
+    setError("Error!"); // Simple message for toast
+    setIsErrorVisible(true);
+    // Clear error after animation
+    setTimeout(() => {
+      setIsErrorVisible(false);
+      setError(null);
+    }, 3500); // Slightly longer than animation duration
+  }, []);
+
+  // Handle Zora errors
+  useEffect(() => {
+    if (zoraError) {
+      handleError(zoraError);
+    }
+  }, [zoraError, handleError]);
+
+  const handleSuccess = useCallback(() => {
+    setSuccess("Success!");
+    setIsSuccessVisible(true);
+    // Clear success after animation
+    setTimeout(() => {
+      setIsSuccessVisible(false);
+      setSuccess(null);
+    }, 3500); // Slightly longer than animation duration
+  }, []);
+
   const handleBuy = useCallback(async () => {
     if (!walletClient || !buyAmount) return;
     try {
@@ -138,24 +200,42 @@ export default function Demo(
       await trade('buy', amountInWei, walletClient);
       setBuyAmount('');
       getCoinInfo();
+      handleSuccess();
     } catch (error) {
       console.error("Error buying coin:", error);
-      setError(parseZoraError(error));
+      handleError(error);
     }
-  }, [walletClient, trade, getCoinInfo, buyAmount]);
+  }, [walletClient, trade, getCoinInfo, buyAmount, handleError, handleSuccess]);
 
   const handleSell = useCallback(async () => {
     if (!walletClient || !sellAmount) return;
     try {
-      const amount = BigInt(parseFloat(sellAmount));
+      const amount = parseEther(sellAmount);
       await trade('sell', amount, walletClient);
       setSellAmount('');
       getCoinInfo();
+      handleSuccess();
     } catch (error) {
       console.error("Error selling coin:", error);
-      setError(parseZoraError(error));
+      handleError(error);
     }
-  }, [walletClient, trade, getCoinInfo, sellAmount]);
+  }, [walletClient, trade, getCoinInfo, sellAmount, handleError, handleSuccess]);
+
+  const addToAmount = useCallback((amount: string) => {
+    if (isBuyTab) {
+      const currentAmount = parseFloat(buyAmount) || 0;
+      const addAmount = amount === 'Max' ? (ethBalance ? parseFloat(formatEther(ethBalance.value)) : 0) : parseFloat(amount);
+      setBuyAmount((currentAmount + addAmount).toString());
+    } else {
+      const currentAmount = parseFloat(sellAmount) || 0;
+      // For sell, onchainDetails.balance is already in wei, so we need to format it first
+      const maxTokens = onchainDetails?.balance ? Number(formatEther(onchainDetails.balance)) : 0;
+      const addAmount = amount === 'Max' 
+        ? maxTokens 
+        : (maxTokens * parseFloat(amount) / 100); // Convert percentage to actual token amount
+      setSellAmount((currentAmount + addAmount).toString());
+    }
+  }, [buyAmount, sellAmount, isBuyTab, ethBalance, onchainDetails?.balance]);
 
   useEffect(() => {
     const load = async () => {
@@ -330,557 +410,237 @@ export default function Demo(
     setIsContextOpen((prev) => !prev);
   }, []);
 
+  const toggleOverlay = useCallback(() => {
+    setIsOverlayVisible(prev => !prev);
+  }, []);
+
+  const toggleTrade = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsTradeVisible(prev => !prev);
+  }, []);
+
   if (!isSDKLoaded) {
     return <div>Loading...</div>;
   }
 
   return (
-    <div className="w-[300px] mx-auto py-4 px-2">
-      <h1 className="text-2xl font-bold text-center mb-4">{title}</h1>
-      
-      {/* Zora Coin Section */}
-      <div className="mb-8 p-4 border rounded-lg">
-        <h2 className="text-xl font-bold mb-4">Zora Coin Trading</h2>
-        
-        <div className="mb-4">
-          <Button
-            onClick={() =>
-              isConnected
-                ? disconnect()
-                : connect({ connector: config.connectors[0] })
-            }
-          >
-            {isConnected ? 'Disconnect' : 'Connect'}
-          </Button>
+    <div className="relative w-screen h-screen bg-black" onClick={toggleOverlay}>
+      {/* Main Image */}
+      {coinDetails?.mediaContent?.previewImage?.small && (
+        <div className="w-full h-full flex items-center justify-center">
+          <img 
+            src={coinDetails.mediaContent.previewImage.small} 
+            alt={coinDetails.name}
+            className="max-w-[400px] w-full object-contain"
+          />
         </div>
+      )}
 
-        {isConnected && (
-          <div className="mb-4 p-2 bg-gray-50 rounded">
-            <p className="text-sm">
-              Your Balance: {ethBalance ? `${formatEther(ethBalance.value)} ETH` : 'Loading...'}
-            </p>
-          </div>
-        )}
-
-        {isConnected && coinDetails && (
-          <div className="mt-4">
-            {coinDetails.mediaContent?.previewImage?.small && (
-              <div className="mb-4 flex justify-center">
-                <img 
-                  src={coinDetails.mediaContent.previewImage.small} 
-                  alt={coinDetails.name}
-                  className="w-24 h-24 rounded-lg object-cover bg-gray-100"
-                />
+      {/* Overlay */}
+      {isOverlayVisible && (
+        <div className="fixed inset-0 flex items-center justify-center">
+          <div className="w-[424px] h-[695px] bg-black border-2 border-white overflow-hidden flex flex-col">
+            {/* URL and Close Button */}
+            <div className="flex justify-between items-stretch border-b-2 border-white h-16">
+              <div className="text-white font-mono text-[13px] p-4 flex items-center">
+                usersteen.eth/simulations/sims
               </div>
-            )}
-            
-            <div className="my-2 space-y-1">
-              <p>Market Cap: {formatCurrency(coinDetails.marketCap)}</p>
-              <p>Total Supply: {formatNumber(coinDetails.totalSupply)}</p>
-              <p>Volume (24h): {formatCurrency(coinDetails.volume24h)}</p>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsOverlayVisible(false);
+                }}
+                className="text-white text-lg leading-none w-16 border-l-2 border-white hover:bg-white hover:text-black transition-colors flex items-center justify-center"
+              >
+                —
+              </button>
             </div>
-            
-            <div className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <Label htmlFor="buyAmount">Buy Amount (ETH)</Label>
-                <Input
-                  id="buyAmount"
-                  type="number"
-                  step="0.0001"
-                  min="0"
-                  value={buyAmount}
-                  onChange={(e) => setBuyAmount(e.target.value)}
-                  placeholder="0.01"
-                  className="w-full mb-2"
-                />
-                <Button 
-                  onClick={handleBuy} 
-                  disabled={isZoraLoading || !buyAmount}
-                  className="w-full"
-                >
-                  Buy
-                </Button>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="sellAmount">Sell Amount (Tokens)</Label>
-                <Input
-                  id="sellAmount"
-                  type="number"
-                  step="1"
-                  min="0"
-                  value={sellAmount}
-                  onChange={(e) => setSellAmount(e.target.value)}
-                  placeholder="1"
-                  className="w-full mb-2"
-                />
-                <Button 
-                  onClick={handleSell} 
-                  disabled={isZoraLoading || !sellAmount}
-                  className="w-full"
-                >
-                  Sell
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {isZoraLoading && (
-          <div className="text-center mt-4">Loading...</div>
-        )}
-        
-        {zoraError && (
-          <div className="mt-4 p-2 bg-red-100 text-red-700 rounded">
-            Error: {zoraError.message}
-          </div>
-        )}
-        
-        {isConnected && !coinDetails && !isZoraLoading && !zoraError && (
-          <div className="text-center mt-4">No coin data available</div>
-        )}
-      </div>
-
-      {/* Original Demo Content */}
-      <div className="space-y-4">
-        <div className="mb-4">
-          <h2 className="font-2xl font-bold">Context</h2>
-          <button
-            onClick={toggleContext}
-            className="flex items-center gap-2 transition-colors"
-          >
-            <span
-              className={`transform transition-transform ${
-                isContextOpen ? "rotate-90" : ""
-              }`}
-            >
-              ➤
-            </span>
-            Tap to expand
-          </button>
-
-          {isContextOpen && (
-            <div className="p-4 mt-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
-              <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
-                {JSON.stringify(context, null, 2)}
-              </pre>
-            </div>
-          )}
-        </div>
-
-        <div>
-          <h2 className="font-2xl font-bold">Actions</h2>
-
-          <div className="mb-4">
-            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
-              <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
-                sdk.actions.signIn
-              </pre>
-            </div>
-            <SignIn />
-          </div>
-
-          <div className="mb-4">
-            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
-              <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
-                sdk.actions.openUrl
-              </pre>
-            </div>
-            <Button onClick={openUrl}>Open Link</Button>
-          </div>
-
-          <div className="mb-4">
-            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
-              <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
-                sdk.actions.openUrl
-              </pre>
-            </div>
-            <Button onClick={openWarpcastUrl}>Open Warpcast Link</Button>
-          </div>
-
-          <div className="mb-4">
-            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
-              <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
-                sdk.actions.viewProfile
-              </pre>
-            </div>
-            <ViewProfile />
-          </div>
-
-          <div className="mb-4">
-            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
-              <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
-                sdk.actions.close
-              </pre>
-            </div>
-            <Button onClick={close}>Close Frame</Button>
-          </div>
-        </div>
-
-        <div className="mb-4">
-          <h2 className="font-2xl font-bold">Last event</h2>
-
-          <div className="p-4 mt-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
-            <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
-              {lastEvent || "none"}
-            </pre>
-          </div>
-        </div>
-
-        <div>
-          <h2 className="font-2xl font-bold">Add to client & notifications</h2>
-
-          <div className="mt-2 mb-4 text-sm">
-            Client fid {context?.client.clientFid},
-            {added ? " frame added to client," : " frame not added to client,"}
-            {notificationDetails
-              ? " notifications enabled"
-              : " notifications disabled"}
-          </div>
-
-          <div className="mb-4">
-            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
-              <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
-                sdk.actions.addFrame
-              </pre>
-            </div>
-            {addFrameResult && (
-              <div className="mb-2 text-sm">
-                Add frame result: {addFrameResult}
-              </div>
-            )}
-            <Button onClick={addFrame} disabled={added}>
-              Add frame to client
-            </Button>
-          </div>
-
-          {sendNotificationResult && (
-            <div className="mb-2 text-sm">
-              Send notification result: {sendNotificationResult}
-            </div>
-          )}
-          <div className="mb-4">
-            <Button onClick={sendNotification} disabled={!notificationDetails}>
-              Send notification
-            </Button>
-          </div>
-        </div>
-
-        <div>
-          <h2 className="font-2xl font-bold">Wallet</h2>
-
-          {address && (
-            <div className="my-2 text-xs">
-              Address: <pre className="inline">{truncateAddress(address)}</pre>
-            </div>
-          )}
-
-          {chainId && (
-            <div className="my-2 text-xs">
-              Chain ID: <pre className="inline">{chainId}</pre>
-            </div>
-          )}
-
-          <div className="mb-4">
-            <Button
-              onClick={() =>
-                isConnected
-                  ? disconnect()
-                  : connect({ connector: config.connectors[0] })
-              }
-            >
-              {isConnected ? "Disconnect" : "Connect"}
-            </Button>
-          </div>
-
-          <div className="mb-4">
-            <SignMessage />
-          </div>
-
-          {isConnected && (
-            <>
-              <div className="mb-4">
-                <SendEth />
-              </div>
-              <div className="mb-4">
-                <Button
-                  onClick={sendTx}
-                  disabled={!isConnected || isSendTxPending}
-                  isLoading={isSendTxPending}
-                >
-                  Send Transaction (contract)
-                </Button>
-                {isSendTxError && renderError(sendTxError)}
-                {txHash && (
-                  <div className="mt-2 text-xs">
-                    <div>Hash: {truncateAddress(txHash)}</div>
-                    <div>
-                      Status:{" "}
-                      {isConfirming
-                        ? "Confirming..."
-                        : isConfirmed
-                        ? "Confirmed!"
-                        : "Pending"}
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-auto flex items-center">
+              <div className="w-full p-4">
+                {/* Token Icon */}
+                {coinDetails?.mediaContent?.previewImage?.small && (
+                  <div className="flex justify-center mb-6">
+                    <div className="w-24 h-24 overflow-hidden">
+                      <img 
+                        src={coinDetails.mediaContent.previewImage.small} 
+                        alt={coinDetails.name}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
                   </div>
                 )}
+
+                {/* Token Info */}
+                <div className="text-white space-y-2 mb-8 font-mono text-center">
+                  <p className="text-xl">{coinDetails?.name} (${coinDetails?.symbol})</p>
+                  <p className="mt-6 text-[13px]">mcap: {formatCurrency(coinDetails?.marketCap)} | vol: {formatCurrency(coinDetails?.totalVolume)}</p>
+                  <p className="text-[13px]">holders: {formatNumber(coinDetails?.uniqueHolders)} | earnings: {formatCurrency(coinDetails?.creatorEarnings?.[0]?.amountUsd)}</p>
+                </div>
+
+                {/* Description */}
+                <div className="text-white space-y-4 mb-8 font-mono text-[13px] text-center">
+                  <p>
+                    cover art for 'simulations,' a fungible art project about my relationship with screens.
+                  </p>
+                  <p>4k cc0.</p>
+                  <p>
+                    1% of volume using this frame will buy/burn $sims via Splits Swapper.
+                  </p>
+                  <p>
+                    full gallery soon.
+                  </p>
+                </div>
               </div>
-              <div className="mb-4">
-                <Button
-                  onClick={signTyped}
-                  disabled={!isConnected || isSignTypedPending}
-                  isLoading={isSignTypedPending}
-                >
-                  Sign Typed Data
-                </Button>
-                {isSignTypedError && renderError(signTypedError)}
-              </div>
-              <div className="mb-4">
-                <Button
-                  onClick={handleSwitchChain}
-                  disabled={isSwitchChainPending}
-                  isLoading={isSwitchChainPending}
-                >
-                  Switch to {nextChain.name}
-                </Button>
-                {isSwitchChainError && renderError(switchChainError)}
-              </div>
-            </>
-          )}
+            </div>
+
+            {/* Sticky Trade Button */}
+            <div className="border-t-2 border-white">
+              <button 
+                onClick={toggleTrade}
+                className="w-full bg-transparent text-white font-mono text-[13px] h-16 hover:bg-white hover:text-black transition-colors"
+              >
+                trade
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Trading Interface */}
+      {isTradeVisible && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-end justify-center"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsTradeVisible(false);
+          }}
+        >
+          <div 
+            className="w-full max-w-[424px] bg-black border-t-2 border-x-2 border-white overflow-hidden flex flex-col animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxHeight: '80vh' }}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-stretch border-b-2 border-white h-16">
+              <div className="flex items-stretch flex-1">
+                <button 
+                  onClick={() => setIsBuyTab(true)}
+                  className={`font-mono text-[13px] flex-1 flex items-center justify-center border-r-2 border-white ${isBuyTab ? 'text-black bg-white' : 'text-white hover: bg-black hover:text-black hover:bg-white'} transition-colors`}
+                >
+                  Buy
+                </button>
+                <button 
+                  onClick={() => setIsBuyTab(false)}
+                  className={`font-mono text-[13px] flex-1 flex items-center justify-center ${!isBuyTab ? 'text-black bg-white' : 'text-white hover:text-black hover:bg-white'} transition-colors`}
+                >
+                  Sell
+                </button>
+              </div>
+              <button 
+                onClick={() => setIsTradeVisible(false)}
+                className="text-white text-2xl leading-none w-16 border-l-2 border-white hover:bg-white hover:text-black transition-colors flex items-center justify-center"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-4">
+              <div className="text-white font-mono text-[13px] mb-4">
+                {isBuyTab 
+                  ? `Your Balance: ${ethBalance ? `${formatEther(ethBalance.value)} ETH` : 'Loading...'}`
+                  : `Your Balance: ${onchainDetails?.balance ? formatNumber(Number(formatEther(onchainDetails.balance)), 2) : '0'} ${coinDetails?.symbol || 'tokens'}`
+                }
+              </div>
+
+              {isConnected ? (
+                <div className="space-y-4">
+                  <Input
+                    type="text"
+                    value={isBuyTab ? buyAmount : sellAmount}
+                    onChange={(e) => isBuyTab ? setBuyAmount(e.target.value) : setSellAmount(e.target.value)}
+                    placeholder={`${isBuyTab ? 'Buy' : 'Sell'} amount ${isBuyTab ? '(ETH)' : '(Tokens)'}`}
+                    className="w-full bg-transparent text-white border-white/50 font-mono text-[13px] px-3 py-2 rounded-none"
+                  />
+                  
+                  <div className="grid grid-cols-4 gap-2">
+                    {isBuyTab ? (
+                      <>
+                        <button onClick={() => addToAmount('0.001')} className="text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors">0.001</button>
+                        <button onClick={() => addToAmount('0.01')} className="text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors">0.01</button>
+                        <button onClick={() => addToAmount('0.1')} className="text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors">0.1</button>
+                        <button onClick={() => addToAmount('Max')} className="text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors">Max</button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={() => addToAmount('25')} className="text-white border border-white/50 font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors">25%</button>
+                        <button onClick={() => addToAmount('50')} className="text-white border border-white/50 font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors">50%</button>
+                        <button onClick={() => addToAmount('75')} className="text-white border border-white/50 font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors">75%</button>
+                        <button onClick={() => addToAmount('100')} className="text-white border border-white/50 font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors">100%</button>
+                      </>
+                    )}
+                  </div>
+
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      isBuyTab ? handleBuy() : handleSell();
+                    }}
+                    disabled={isZoraLoading || (isBuyTab ? !buyAmount : !sellAmount)}
+                    className="w-full bg-transparent text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors disabled:opacity-50 mt-4"
+                  >
+                    {isBuyTab ? 'Buy' : 'Sell'}
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    connect({ connector: config.connectors[0] });
+                  }}
+                  className="w-full bg-transparent text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors"
+                >
+                  Connect Wallet
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {isZoraLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+          <div className="text-white font-mono text-[13px]">Loading...</div>
+        </div>
+      )}
+
+      {/* Toast Error */}
+      {isErrorVisible && error && (
+        <div 
+          className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-4 bg-red-500 text-white rounded-lg font-mono text-base min-w-[200px] text-center shadow-lg ${isErrorVisible ? 'animate-slide-up' : 'animate-fade-out'} cursor-pointer`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsErrorVisible(false);
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {/* Toast Success */}
+      {isSuccessVisible && success && (
+        <div 
+          className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-4 bg-green-500 text-white rounded-lg font-mono text-base min-w-[200px] text-center shadow-lg ${isSuccessVisible ? 'animate-slide-up' : 'animate-fade-out'} cursor-pointer`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsSuccessVisible(false);
+          }}
+        >
+          {success}
+        </div>
+      )}
     </div>
   );
 }
-
-function SignMessage() {
-  const { isConnected } = useAccount();
-  const { connectAsync } = useConnect();
-  const {
-    signMessage,
-    data: signature,
-    error: signError,
-    isError: isSignError,
-    isPending: isSignPending,
-  } = useSignMessage();
-
-  const handleSignMessage = useCallback(async () => {
-    if (!isConnected) {
-      await connectAsync({
-        chainId: base.id,
-        connector: config.connectors[0],
-      });
-    }
-
-    signMessage({ message: "Hello from Frames v2!" });
-  }, [connectAsync, isConnected, signMessage]);
-
-  return (
-    <>
-      <Button
-        onClick={handleSignMessage}
-        disabled={isSignPending}
-        isLoading={isSignPending}
-      >
-        Sign Message
-      </Button>
-      {isSignError && renderError(signError)}
-      {signature && (
-        <div className="mt-2 text-xs">
-          <div>Signature: {signature}</div>
-        </div>
-      )}
-    </>
-  );
-}
-
-function SendEth() {
-  const { isConnected, chainId } = useAccount();
-  const {
-    sendTransaction,
-    data,
-    error: sendTxError,
-    isError: isSendTxError,
-    isPending: isSendTxPending,
-  } = useSendTransaction();
-
-  const { isLoading: isConfirming, isSuccess: isConfirmed } =
-    useWaitForTransactionReceipt({
-      hash: data,
-    });
-
-  const toAddr = useMemo(() => {
-    return chainId === base.id
-      ? "0x32e3C7fD24e175701A35c224f2238d18439C7dBC"
-      : "0xB3d8d7887693a9852734b4D25e9C0Bb35Ba8a830";
-  }, [chainId]);
-
-  const handleSend = useCallback(() => {
-    sendTransaction({
-      to: toAddr,
-      value: 1n,
-    });
-  }, [toAddr, sendTransaction]);
-
-  return (
-    <>
-      <Button
-        onClick={handleSend}
-        disabled={!isConnected || isSendTxPending}
-        isLoading={isSendTxPending}
-      >
-        Send Transaction (eth)
-      </Button>
-      {isSendTxError && renderError(sendTxError)}
-      {data && (
-        <div className="mt-2 text-xs">
-          <div>Hash: {truncateAddress(data)}</div>
-          <div>
-            Status:{" "}
-            {isConfirming
-              ? "Confirming..."
-              : isConfirmed
-              ? "Confirmed!"
-              : "Pending"}
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-function SignIn() {
-  const [signingIn, setSigningIn] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
-  const [signInResult, setSignInResult] = useState<SignInCore.SignInResult>();
-  const [signInFailure, setSignInFailure] = useState<string>();
-  const { data: session, status } = useSession();
-
-  const getNonce = useCallback(async () => {
-    const nonce = await getCsrfToken();
-    if (!nonce) throw new Error("Unable to generate nonce");
-    return nonce;
-  }, []);
-
-  const handleSignIn = useCallback(async () => {
-    try {
-      setSigningIn(true);
-      setSignInFailure(undefined);
-      const nonce = await getNonce();
-      const result = await sdk.actions.signIn({ nonce });
-      setSignInResult(result);
-
-      await signIn("credentials", {
-        message: result.message,
-        signature: result.signature,
-        redirect: false,
-      });
-    } catch (e) {
-      if (e instanceof SignInCore.RejectedByUser) {
-        setSignInFailure("Rejected by user");
-        return;
-      }
-
-      setSignInFailure("Unknown error");
-    } finally {
-      setSigningIn(false);
-    }
-  }, [getNonce]);
-
-  const handleSignOut = useCallback(async () => {
-    try {
-      setSigningOut(true);
-      await signOut({ redirect: false });
-      setSignInResult(undefined);
-    } finally {
-      setSigningOut(false);
-    }
-  }, []);
-
-  return (
-    <>
-      {status !== "authenticated" && (
-        <Button onClick={handleSignIn} disabled={signingIn}>
-          Sign In with Farcaster
-        </Button>
-      )}
-      {status === "authenticated" && (
-        <Button onClick={handleSignOut} disabled={signingOut}>
-          Sign out
-        </Button>
-      )}
-      {session && (
-        <div className="my-2 p-2 text-xs overflow-x-scroll bg-gray-100 rounded-lg font-mono">
-          <div className="font-semibold text-gray-500 mb-1">Session</div>
-          <div className="whitespace-pre">
-            {JSON.stringify(session, null, 2)}
-          </div>
-        </div>
-      )}
-      {signInFailure && !signingIn && (
-        <div className="my-2 p-2 text-xs overflow-x-scroll bg-gray-100 rounded-lg font-mono">
-          <div className="font-semibold text-gray-500 mb-1">SIWF Result</div>
-          <div className="whitespace-pre">{signInFailure}</div>
-        </div>
-      )}
-      {signInResult && !signingIn && (
-        <div className="my-2 p-2 text-xs overflow-x-scroll bg-gray-100 rounded-lg font-mono">
-          <div className="font-semibold text-gray-500 mb-1">SIWF Result</div>
-          <div className="whitespace-pre">
-            {JSON.stringify(signInResult, null, 2)}
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-function ViewProfile() {
-  const [fid, setFid] = useState("3");
-
-  return (
-    <>
-      <div>
-        <Label
-          className="text-xs font-semibold text-gray-500 mb-1"
-          htmlFor="view-profile-fid"
-        >
-          Fid
-        </Label>
-        <Input
-          id="view-profile-fid"
-          type="number"
-          value={fid}
-          className="mb-2"
-          onChange={(e) => {
-            setFid(e.target.value);
-          }}
-          step="1"
-          min="1"
-        />
-      </div>
-      <Button
-        onClick={() => {
-          sdk.actions.viewProfile({ fid: parseInt(fid) });
-        }}
-      >
-        View Profile
-      </Button>
-    </>
-  );
-}
-
-const renderError = (error: Error | null) => {
-  if (!error) return null;
-  if (error instanceof BaseError) {
-    const isUserRejection = error.walk(
-      (e) => e instanceof UserRejectedRequestError
-    );
-
-    if (isUserRejection) {
-      return <div className="text-red-500 text-xs mt-1">Rejected by user.</div>;
-    }
-  }
-
-  return <div className="text-red-500 text-xs mt-1">{error.message}</div>;
-};
