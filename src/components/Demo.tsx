@@ -3,37 +3,26 @@
 import { useEffect, useCallback, useState, useMemo } from "react";
 import Image from "next/image";
 import { Input } from "../components/ui/input";
-import { signIn, signOut, getCsrfToken } from "next-auth/react";
 import sdk, {
-  AddFrame,
   FrameNotificationDetails,
-  SignIn as SignInCore,
   type Context,
 } from "@farcaster/frame-sdk";
 import {
   useAccount,
   useSendTransaction,
-  useSignMessage,
-  useSignTypedData,
   useWaitForTransactionReceipt,
-  useDisconnect,
   useConnect,
-  useSwitchChain,
   useChainId,
   useWalletClient,
   useBalance,
 } from "wagmi";
 
 import { config } from "~/components/providers/WagmiProvider";
-import { Button } from "~/components/ui/Button";
-import { truncateAddress } from "~/lib/truncateAddress";
 import { base, degen, mainnet, optimism, unichain } from "wagmi/chains";
-import { BaseError, UserRejectedRequestError, parseEther, formatEther } from "viem";
-import { useSession } from "next-auth/react";
+import { parseEther, formatEther } from "viem";
 import { createStore } from "mipd";
-import { Label } from "~/components/ui/label";
 import { useZoraCoin } from "~/components/hooks/useZoraCoin";
-import { formatCurrency, formatNumber, parseZoraError } from "~/lib/utils";
+import { formatCurrency, formatNumber } from "~/lib/utils";
 
 // Add animation styles
 const styles = `
@@ -46,47 +35,55 @@ const styles = `
   }
 }
 
-.animate-slide-up {
-  animation: slideUp 0.3s ease-out forwards;
+@keyframes slideDown {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    background: rgba(0, 0, 0, 0);
+  }
+  to {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.8);
+  }
 }
 
 @keyframes fadeOut {
   from {
     opacity: 1;
+    background: rgba(0, 0, 0, 0.8);
   }
   to {
     opacity: 0;
+    background: rgba(0, 0, 0, 0);
   }
 }
 
+.animate-slide-up {
+  animation: slideUp 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-slide-down {
+  animation: slideDown 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
 .animate-fade-out {
-  animation: fadeOut 0.3s ease-out forwards;
-}
-
-.overlay-transition {
-  transition: opacity 0.3s ease-in-out;
-  opacity: 0;
-}
-
-.overlay-transition-active {
-  opacity: 1;
-}
-
-.overlay-content-transition {
-  transition: all 0.3s ease-in-out;
-  transform: scale(0.95);
-  opacity: 0;
-}
-
-.overlay-content-transition-active {
-  transform: scale(1);
-  opacity: 1;
+  animation: fadeOut 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 `;
 
-export default function Demo(
-  { title }: { title?: string } = { title: "Frames v2 Demo" }
-) {
+export default function Demo() {
   // Add style tag to head
   useEffect(() => {
     const style = document.createElement('style');
@@ -118,34 +115,36 @@ export default function Demo(
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
 
-  const {
-    sendTransaction,
-    error: sendTxError,
-    isError: isSendTxError,
-    isPending: isSendTxPending,
-  } = useSendTransaction();
+  const handleSuccess = useCallback(() => {
+    setSuccess('Operation completed successfully');
+    setIsSuccessVisible(true);
+    setTimeout(() => setIsSuccessVisible(false), 3000);
+  }, []);
 
-  const { isLoading: isConfirming, isSuccess: isConfirmed } =
-    useWaitForTransactionReceipt({
-      hash: txHash as `0x${string}`,
-    });
+  const handleError = useCallback((message: string) => {
+    setError(message);
+    setIsErrorVisible(true);
+    setTimeout(() => setIsErrorVisible(false), 3000);
+  }, []);
 
-  const {
-    signTypedData,
-    error: signTypedError,
-    isError: isSignTypedError,
-    isPending: isSignTypedPending,
-  } = useSignTypedData();
+  const { sendTransaction } = useSendTransaction({
+    mutation: {
+      onError: (error) => {
+        handleError(error.message || 'Transaction failed');
+      },
+      onSuccess: (hash) => {
+        setTxHash(hash);
+        handleSuccess();
+      }
+    }
+  });
 
-  const { disconnect } = useDisconnect();
+  useWaitForTransactionReceipt({
+    hash: txHash as `0x${string}`,
+    onReplaced: () => handleSuccess()
+  });
+
   const { connect } = useConnect();
-
-  const {
-    switchChain,
-    error: switchChainError,
-    isError: isSwitchChainError,
-    isPending: isSwitchChainPending,
-  } = useSwitchChain();
 
   const nextChain = useMemo(() => {
     if (chainId === base.id) {
@@ -160,15 +159,6 @@ export default function Demo(
       return base;
     }
   }, [chainId]);
-
-  const handleSwitchChain = useCallback(async () => {
-    if (!switchChain) return;
-    try {
-      await switchChain({ chainId: nextChain.id });
-    } catch (error) {
-      console.error('Failed to switch chain:', error);
-    }
-  }, [nextChain.id, switchChain]);
 
   // Zora integration
   const targetCoinAddress = "0xdcb492364375a425547fedd3bbe66904994c6182" as `0x${string}`;
@@ -199,24 +189,12 @@ export default function Demo(
     }
   }, [coinDetails]);
 
-  const handleError = useCallback((message: string) => {
-    setError(message);
-    setIsErrorVisible(true);
-    setTimeout(() => setIsErrorVisible(false), 3000);
-  }, []);
-
   // Handle Zora errors
   useEffect(() => {
     if (zoraError) {
       handleError(zoraError.message);
     }
   }, [zoraError, handleError]);
-
-  const handleSuccess = useCallback(() => {
-    setSuccess('Operation completed successfully');
-    setIsSuccessVisible(true);
-    setTimeout(() => setIsSuccessVisible(false), 3000);
-  }, []);
 
   const handleBuy = useCallback(async () => {
     if (!walletClient || !buyAmount) return;
@@ -253,173 +231,13 @@ export default function Demo(
       setBuyAmount((currentAmount + addAmount).toString());
     } else {
       const currentAmount = parseFloat(sellAmount) || 0;
-      // For sell, onchainDetails.balance is already in wei, so we need to format it first
       const maxTokens = onchainDetails?.balance ? Number(formatEther(onchainDetails.balance)) : 0;
       const addAmount = amount === 'Max' 
         ? maxTokens 
-        : (maxTokens * parseFloat(amount) / 100); // Convert percentage to actual token amount
+        : (maxTokens * parseFloat(amount) / 100);
       setSellAmount((currentAmount + addAmount).toString());
     }
   }, [buyAmount, sellAmount, isBuyTab, ethBalance, onchainDetails?.balance]);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const context = await sdk.context;
-        setContext(context);
-        
-        if (context?.client) {
-          setNotificationDetails(context.client.notificationDetails ?? null);
-        }
-
-        sdk.on("frameAdded", ({ notificationDetails }) => {
-          if (notificationDetails) {
-            setNotificationDetails(notificationDetails);
-          }
-        });
-
-        sdk.on("frameAddRejected", ({ reason }) => {
-          console.error("frameAddRejected, reason", reason);
-        });
-
-        sdk.on("frameRemoved", () => {
-          setNotificationDetails(null);
-        });
-
-        sdk.on("notificationsEnabled", ({ notificationDetails }) => {
-          if (notificationDetails) {
-            setNotificationDetails(notificationDetails);
-          }
-        });
-        
-        sdk.on("notificationsDisabled", () => {
-          setNotificationDetails(null);
-        });
-
-        sdk.on("primaryButtonClicked", () => {
-          console.log("primaryButtonClicked");
-        });
-
-        console.log("Calling ready");
-        sdk.actions.ready({});
-
-        const store = createStore();
-        store.subscribe((providerDetails) => {
-          console.log("PROVIDER DETAILS", providerDetails);
-        });
-      } catch (error) {
-        console.error("Error loading SDK:", error);
-      }
-    };
-
-    if (sdk && !isSDKLoaded) {
-      setIsSDKLoaded(true);
-      load();
-      return () => {
-        sdk.removeAllListeners();
-      };
-    }
-  }, [isSDKLoaded]);
-
-  const openUrl = useCallback(() => {
-    sdk.actions.openUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
-  }, []);
-
-  const openWarpcastUrl = useCallback(() => {
-    sdk.actions.openUrl("https://warpcast.com/~/compose");
-  }, []);
-
-  const close = useCallback(() => {
-    sdk.actions.close();
-  }, []);
-
-  const addFrame = useCallback(async () => {
-    try {
-      setNotificationDetails(null);
-
-      const result = await sdk.actions.addFrame();
-
-      if (result.notificationDetails) {
-        setNotificationDetails(result.notificationDetails);
-      }
-    } catch (error) {
-      if (error instanceof AddFrame.RejectedByUser) {
-        console.error("Not added: ", error.message);
-      }
-
-      if (error instanceof AddFrame.InvalidDomainManifest) {
-        console.error("Not added: ", error.message);
-      }
-
-      console.error("Error: ", error);
-    }
-  }, []);
-
-  const sendNotification = useCallback(async () => {
-    if (!notificationDetails || !context) {
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/send-notification", {
-        method: "POST",
-        mode: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fid: context.user.fid,
-          notificationDetails,
-        }),
-      });
-
-      if (response.status === 200) {
-        handleSuccess();
-        return;
-      } else if (response.status === 429) {
-        console.error("Rate limited");
-        return;
-      }
-
-      const data = await response.text();
-      console.error("Error: ", data);
-    } catch (error) {
-      console.error("Error: ", error);
-    }
-  }, [context, notificationDetails]);
-
-  const sendTx = useCallback(() => {
-    sendTransaction(
-      {
-        to: "0x4bBFD120d9f352A0BEd7a014bd67913a2007a878",
-        data: "0x9846cd9efc000023c0",
-      },
-      {
-        onSuccess: (hash) => {
-          setTxHash(hash);
-        },
-      }
-    );
-  }, [sendTransaction]);
-
-  const signTyped = useCallback(() => {
-    signTypedData({
-      domain: {
-        name: "Frames v2 Demo",
-        version: "1",
-        chainId,
-      },
-      types: {
-        Message: [{ name: "content", type: "string" }],
-      },
-      message: {
-        content: "Hello from Frames v2!",
-      },
-      primaryType: "Message",
-    });
-  }, [chainId, signTypedData]);
-
-  const toggleOverlay = useCallback(() => {
-    setIsOverlayVisible(prev => !prev);
-  }, []);
 
   const toggleTrade = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -458,6 +276,38 @@ export default function Demo(
     }
   }, [isTradeVisible]);
 
+  // Initialize SDK
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const context = await sdk.context;
+        setContext(context);
+        
+        if (context?.client) {
+          setNotificationDetails(context.client.notificationDetails ?? null);
+        }
+
+        // Initialize SDK
+        sdk.actions.ready({});
+
+        // Initialize store
+        const store = createStore();
+        store.subscribe((providerDetails) => {
+          if (providerDetails) {
+            console.log("Provider details updated:", providerDetails);
+          }
+        });
+      } catch (error) {
+        handleError(error instanceof Error ? error.message : "Failed to load SDK");
+      }
+    };
+
+    if (sdk && !isSDKLoaded) {
+      setIsSDKLoaded(true);
+      load();
+    }
+  }, [isSDKLoaded, handleError]);
+
   if (!isSDKLoaded) {
     return <div>Loading...</div>;
   }
@@ -466,7 +316,17 @@ export default function Demo(
     <div className="relative w-screen h-screen bg-black">
       {/* Main Image */}
       {coinDetails?.mediaContent?.previewImage?.medium && (
-        <div className="w-full h-full flex items-center justify-center" onClick={() => setIsOverlayVisible(true)}>
+        <div 
+          className="w-full h-full flex items-center justify-center" 
+          onClick={() => setIsOverlayVisible(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              setIsOverlayVisible(true);
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
           <Image 
             src={coinDetails.mediaContent.previewImage.medium} 
             alt={coinDetails.name}
@@ -480,10 +340,16 @@ export default function Demo(
       {/* Overlay */}
       {isOverlayMounted && (
         <div 
-          className={`fixed inset-0 flex items-center justify-center overlay-backdrop ${isOverlayActive ? 'active' : ''}`}
+          className={`fixed inset-0 bg-black/80 flex items-center justify-center ${
+            isOverlayActive ? 'animate-fade-in' : 'animate-fade-out'
+          }`}
+          onClick={() => setIsOverlayVisible(false)}
         >
           <div 
-            className={`w-[424px] h-[695px] bg-black border-2 border-white overflow-hidden flex flex-col overlay-content ${isOverlayActive ? 'active' : ''}`}
+            className={`w-[424px] h-[695px] bg-black border-2 border-white overflow-hidden flex flex-col ${
+              isOverlayActive ? 'animate-slide-up' : 'animate-slide-down'
+            }`}
+            onClick={(e) => e.stopPropagation()}
           >
             {/* URL and Close Button */}
             <div className="flex justify-between items-stretch border-b-2 border-white h-16">
@@ -565,7 +431,9 @@ export default function Demo(
           }}
         >
           <div 
-            className={`w-full max-w-[424px] bg-black border-t-2 border-x-2 border-white overflow-hidden flex flex-col ${isTradeModalActive ? 'slide-up' : 'slide-down'}`}
+            className={`w-full max-w-[424px] bg-black border-t-2 border-x-2 border-white overflow-hidden flex flex-col ${
+              isTradeModalActive ? 'animate-slide-up' : 'animate-slide-down'
+            }`}
             onClick={(e) => e.stopPropagation()}
             style={{ maxHeight: '80vh' }}
           >
@@ -666,7 +534,9 @@ export default function Demo(
       {/* Toast Error */}
       {isErrorVisible && error && (
         <div 
-          className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-4 bg-red-500 text-white rounded-lg font-mono text-base min-w-[200px] text-center shadow-lg ${isErrorVisible ? 'animate-slide-up' : 'animate-fade-out'} cursor-pointer`}
+          className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-4 bg-red-500 text-white rounded-lg font-mono text-base min-w-[200px] text-center shadow-lg ${
+            isErrorVisible ? 'animate-slide-up' : 'animate-fade-out'
+          } cursor-pointer`}
           onClick={(e) => {
             e.stopPropagation();
             setIsErrorVisible(false);
@@ -679,7 +549,9 @@ export default function Demo(
       {/* Toast Success */}
       {isSuccessVisible && success && (
         <div 
-          className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-4 bg-green-500 text-white rounded-lg font-mono text-base min-w-[200px] text-center shadow-lg ${isSuccessVisible ? 'animate-slide-up' : 'animate-fade-out'} cursor-pointer`}
+          className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-4 bg-green-500 text-white rounded-lg font-mono text-base min-w-[200px] text-center shadow-lg ${
+            isSuccessVisible ? 'animate-slide-up' : 'animate-fade-out'
+          } cursor-pointer`}
           onClick={(e) => {
             e.stopPropagation();
             setIsSuccessVisible(false);
