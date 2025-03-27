@@ -2,10 +2,112 @@ import { useState, useCallback } from 'react';
 import { fetchCoinDetails, executeTrade, fetchOnchainCoinDetails } from '~/lib/zora';
 import { useAccount, usePublicClient } from 'wagmi';
 import { type WalletClient, type PublicClient } from 'viem';
+import { type OnchainCoinDetails } from '@zoralabs/coins-sdk';
 
-export function useZoraCoin(coinAddress: `0x${string}`) {
-  const [coinDetails, setCoinDetails] = useState<any>(null);
-  const [onchainDetails, setOnchainDetails] = useState<any>(null);
+// Raw API response type
+interface ZoraApiResponse {
+  name?: string;
+  symbol?: string;
+  description?: string;
+  marketCap?: string | number;
+  totalVolume?: string | number;
+  uniqueHolders?: string | number;
+  creatorEarnings?: Array<{
+    amount?: {
+      amountRaw?: string;
+    };
+    amountUsd?: string;
+  }>;
+  mediaContent?: {
+    previewImage?: {
+      small?: string;
+      medium?: string;
+      large?: string;
+    };
+    animation?: {
+      url?: string;
+      mimeType?: string;
+    };
+  };
+  address?: string;
+}
+
+// Our required interface
+interface CoinDetails {
+  name: string;
+  symbol: string;
+  description?: string;
+  marketCap: number;
+  totalVolume: number;
+  uniqueHolders: number;
+  creatorEarnings: Array<{
+    amountUsd: number;
+    amountRaw: string;
+  }>;
+  mediaContent?: {
+    previewImage?: {
+      small?: string;
+      medium?: string;
+      large?: string;
+    };
+    animation?: {
+      url?: string;
+      mimeType?: string;
+    };
+  };
+  address: string;
+}
+
+// Type guard and converter
+function convertToCoinDetails(data: ZoraApiResponse | null): CoinDetails | null {
+  if (!data || !data.name || !data.symbol || !data.address) return null;
+
+  // Convert string numbers to actual numbers
+  const marketCap = typeof data.marketCap === 'string' ? parseFloat(data.marketCap) : data.marketCap;
+  const totalVolume = typeof data.totalVolume === 'string' ? parseFloat(data.totalVolume) : data.totalVolume;
+  const uniqueHolders = typeof data.uniqueHolders === 'string' ? parseInt(data.uniqueHolders) : data.uniqueHolders;
+
+  if (
+    typeof marketCap !== 'number' ||
+    typeof totalVolume !== 'number' ||
+    typeof uniqueHolders !== 'number' ||
+    !Array.isArray(data.creatorEarnings)
+  ) {
+    return null;
+  }
+
+  // Convert creator earnings
+  const creatorEarnings = data.creatorEarnings.map(earning => ({
+    amountUsd: parseFloat(earning.amountUsd || '0'),
+    amountRaw: earning.amount?.amountRaw || '0'
+  }));
+
+  // Create a new object that matches our CoinDetails interface
+  return {
+    name: data.name,
+    symbol: data.symbol,
+    address: data.address,
+    description: data.description,
+    marketCap,
+    totalVolume,
+    uniqueHolders,
+    creatorEarnings,
+    mediaContent: data.mediaContent
+  };
+}
+
+interface UseZoraCoinReturn {
+  coinDetails: CoinDetails | null;
+  onchainDetails: OnchainCoinDetails | null;
+  isLoading: boolean;
+  error: Error | null;
+  getCoinInfo: () => Promise<void>;
+  trade: (direction: 'buy' | 'sell', orderSize: bigint, walletClient: WalletClient) => Promise<unknown>;
+}
+
+export function useZoraCoin(coinAddress: `0x${string}`): UseZoraCoinReturn {
+  const [coinDetails, setCoinDetails] = useState<CoinDetails | null>(null);
+  const [onchainDetails, setOnchainDetails] = useState<OnchainCoinDetails | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const { address } = useAccount();
@@ -26,7 +128,13 @@ export function useZoraCoin(coinAddress: `0x${string}`) {
       console.log('Coin details:', details);
       console.log('Onchain data:', onchainData);
       
-      setCoinDetails(details);
+      const convertedDetails = convertToCoinDetails(details);
+      if (convertedDetails) {
+        setCoinDetails(convertedDetails);
+      } else {
+        console.error('Invalid coin details format:', details);
+        setError(new Error('Invalid coin details format'));
+      }
       setOnchainDetails(onchainData);
     } catch (err) {
       console.error('Error in getCoinInfo:', err);
@@ -79,4 +187,4 @@ export function useZoraCoin(coinAddress: `0x${string}`) {
     getCoinInfo,
     trade
   };
-} 
+}

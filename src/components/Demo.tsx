@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState, useMemo } from "react";
+import Image from "next/image";
 import { Input } from "../components/ui/input";
 import { signIn, signOut, getCsrfToken } from "next-auth/react";
 import sdk, {
@@ -277,11 +278,10 @@ export default function Demo(
   useEffect(() => {
     if (coinDetails) {
       console.log('Coin Details:', coinDetails);
-      console.log('Media:', coinDetails.media);
     }
   }, [coinDetails]);
 
-  const handleError = useCallback((error: any) => {
+  const handleError = useCallback((error: Error | unknown) => {
     console.error("Detailed error:", error);
     setError("Error!"); // Simple message for toast
     setIsErrorVisible(true);
@@ -576,9 +576,11 @@ export default function Demo(
       {/* Main Image */}
       {coinDetails?.mediaContent?.previewImage?.medium && (
         <div className="w-full h-full flex items-center justify-center" onClick={() => setIsOverlayVisible(true)}>
-          <img 
+          <Image 
             src={coinDetails.mediaContent.previewImage.medium} 
             alt={coinDetails.name}
+            width={600}
+            height={600}
             className="max-w-[600px] rotate-90 object-contain"
           />
         </div>
@@ -615,9 +617,11 @@ export default function Demo(
                 {coinDetails?.mediaContent?.previewImage?.small && (
                   <div className="flex justify-center mb-6">
                     <div className="w-24 h-24 overflow-hidden">
-                      <img 
+                      <Image 
                         src={coinDetails.mediaContent.previewImage.small} 
                         alt={coinDetails.name}
+                        width={96}
+                        height={96}
                         className="w-full h-full object-cover"
                       />
                     </div>
@@ -634,7 +638,7 @@ export default function Demo(
                 {/* Description */}
                 <div className="text-white space-y-4 mb-8 font-mono text-[13px] text-center">
                   <p>
-                    cover art for 'simulations,' a fungible art project about my relationship with screens.
+                    cover art for &apos;simulations,&apos; a fungible art project about my relationship with screens.
                   </p>
                   <p>4k cc0.</p>
                   <p>

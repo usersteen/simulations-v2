@@ -1,4 +1,4 @@
-import { getCoin, tradeCoin, setApiKey, getOnchainCoinDetails as getZoraOnchainCoinDetails, type OnchainCoinDetails } from '@zoralabs/coins-sdk';
+import { getCoin, tradeCoin, getOnchainCoinDetails as getZoraOnchainCoinDetails, type OnchainCoinDetails } from '@zoralabs/coins-sdk';
 import { type WalletClient, type PublicClient } from 'viem';
 
 // Re-export the type from the SDK
@@ -16,6 +16,7 @@ const DEFAULT_SLIPPAGE = 0.025;
 export async function fetchCoinDetails(address: `0x${string}`, chainId = 8453) {
   try {
     const response = await getCoin({ address, chain: chainId });
+    console.log('Zora API Response:', JSON.stringify(response?.data?.zora20Token, null, 2));
     return response?.data?.zora20Token || null;
   } catch (error) {
     console.error("Error fetching coin details:", error);
