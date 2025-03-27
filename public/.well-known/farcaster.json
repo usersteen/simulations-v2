@@ -1,0 +1,18 @@
+{
+  "accountAssociation": {
+    "header": "PLACEHOLDER_HEADER",
+    "payload": "PLACEHOLDER_PAYLOAD",
+    "signature": "PLACEHOLDER_SIGNATURE"
+  },
+  "frame": {
+    "version": "1",
+    "name": "Simulations",
+    "iconUrl": "https://simulations-v2.vercel.app/icon.png",
+    "homeUrl": "https://simulations-v2.vercel.app",
+    "imageUrl": "https://simulations-v2.vercel.app/embed.png",
+    "buttonTitle": "Explore Simulations",
+    "splashImageUrl": "https://simulations-v2.vercel.app/splash.png",
+    "splashBackgroundColor": "#f7f7f7",
+    "webhookUrl": "https://simulations-v2.vercel.app/api/webhook"
+  }
+} 

@@ -61,11 +61,123 @@ const slideUpAnimation = `
 .animate-fade-out {
   animation: fadeOut 0.3s ease-out forwards;
 }
+
+.overlay-transition {
+  transition: opacity 0.3s ease-in-out;
+  opacity: 0;
+}
+
+.overlay-transition-active {
+  opacity: 1;
+}
+
+.overlay-content-transition {
+  transition: all 0.3s ease-in-out;
+  transform: scale(0.95);
+  opacity: 0;
+}
+
+.overlay-content-transition-active {
+  transform: scale(1);
+  opacity: 1;
+}
 `;
 
 export default function Demo(
   { title }: { title?: string } = { title: "Frames v2 Demo" }
 ) {
+  // Add style tag to head
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideUp {
+        from {
+          transform: translateY(100%);
+        }
+        to {
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes slideDown {
+        from {
+          transform: translateY(0);
+        }
+        to {
+          transform: translateY(100%);
+        }
+      }
+
+      @keyframes fadeIn {
+        from {
+          background: rgba(0, 0, 0, 0);
+        }
+        to {
+          background: rgba(0, 0, 0, 0.8);
+        }
+      }
+
+      @keyframes fadeOut {
+        from {
+          background: rgba(0, 0, 0, 0.8);
+        }
+        to {
+          background: rgba(0, 0, 0, 0);
+        }
+      }
+
+      @keyframes contentIn {
+        from {
+          opacity: 0;
+          transform: scale(0.95);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      @keyframes contentOut {
+        from {
+          opacity: 1;
+          transform: scale(1);
+        }
+        to {
+          opacity: 0;
+          transform: scale(0.95);
+        }
+      }
+
+      .slide-up {
+        animation: slideUp 300ms ease-out forwards;
+      }
+
+      .slide-down {
+        animation: slideDown 300ms ease-out forwards;
+      }
+
+      .overlay-backdrop {
+        animation: fadeOut 300ms ease-out forwards;
+      }
+
+      .overlay-backdrop.active {
+        animation: fadeIn 300ms ease-out forwards;
+      }
+
+      .overlay-content {
+        animation: contentOut 300ms ease-out forwards;
+      }
+
+      .overlay-content.active {
+        animation: contentIn 300ms ease-out forwards;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [context, setContext] = useState<Context.FrameContext>();
   const [isContextOpen, setIsContextOpen] = useState(false);
@@ -84,6 +196,10 @@ export default function Demo(
   const [isOverlayVisible, setIsOverlayVisible] = useState(false);
   const [isTradeVisible, setIsTradeVisible] = useState(false);
   const [isBuyTab, setIsBuyTab] = useState(true);
+  const [isOverlayMounted, setIsOverlayMounted] = useState(false);
+  const [isOverlayActive, setIsOverlayActive] = useState(false);
+  const [isTradeModalMounted, setIsTradeModalMounted] = useState(false);
+  const [isTradeModalActive, setIsTradeModalActive] = useState(false);
 
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -419,27 +535,63 @@ export default function Demo(
     setIsTradeVisible(prev => !prev);
   }, []);
 
+  // Handle overlay transitions
+  useEffect(() => {
+    if (isOverlayVisible) {
+      setIsOverlayMounted(true);
+      requestAnimationFrame(() => {
+        setIsOverlayActive(true);
+      });
+    } else {
+      setIsOverlayActive(false);
+      const timer = setTimeout(() => {
+        setIsOverlayMounted(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isOverlayVisible]);
+
+  // Handle trade modal transitions
+  useEffect(() => {
+    if (isTradeVisible) {
+      setIsTradeModalMounted(true);
+      requestAnimationFrame(() => {
+        setIsTradeModalActive(true);
+      });
+    } else {
+      setIsTradeModalActive(false);
+      const timer = setTimeout(() => {
+        setIsTradeModalMounted(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isTradeVisible]);
+
   if (!isSDKLoaded) {
     return <div>Loading...</div>;
   }
 
   return (
-    <div className="relative w-screen h-screen bg-black" onClick={toggleOverlay}>
+    <div className="relative w-screen h-screen bg-black">
       {/* Main Image */}
-      {coinDetails?.mediaContent?.previewImage?.small && (
-        <div className="w-full h-full flex items-center justify-center">
+      {coinDetails?.mediaContent?.previewImage?.medium && (
+        <div className="w-full h-full flex items-center justify-center" onClick={() => setIsOverlayVisible(true)}>
           <img 
-            src={coinDetails.mediaContent.previewImage.small} 
+            src={coinDetails.mediaContent.previewImage.medium} 
             alt={coinDetails.name}
-            className="max-w-[400px] w-full object-contain"
+            className="max-w-[600px] rotate-90 object-contain"
           />
         </div>
       )}
 
       {/* Overlay */}
-      {isOverlayVisible && (
-        <div className="fixed inset-0 flex items-center justify-center">
-          <div className="w-[424px] h-[695px] bg-black border-2 border-white overflow-hidden flex flex-col">
+      {isOverlayMounted && (
+        <div 
+          className={`fixed inset-0 flex items-center justify-center overlay-backdrop ${isOverlayActive ? 'active' : ''}`}
+        >
+          <div 
+            className={`w-[424px] h-[695px] bg-black border-2 border-white overflow-hidden flex flex-col overlay-content ${isOverlayActive ? 'active' : ''}`}
+          >
             {/* URL and Close Button */}
             <div className="flex justify-between items-stretch border-b-2 border-white h-16">
               <div className="text-white font-mono text-[13px] p-4 flex items-center">
@@ -486,7 +638,7 @@ export default function Demo(
                   </p>
                   <p>4k cc0.</p>
                   <p>
-                    1% of volume using this frame will buy/burn $sims via Splits Swapper.
+                    .15% of volume through this frame will buy/burn $sims via Splits Swapper.
                   </p>
                   <p>
                     full gallery soon.
@@ -509,7 +661,7 @@ export default function Demo(
       )}
 
       {/* Trading Interface */}
-      {isTradeVisible && (
+      {isTradeModalMounted && (
         <div 
           className="fixed inset-0 bg-black/50 flex items-end justify-center"
           onClick={(e) => {
@@ -518,7 +670,7 @@ export default function Demo(
           }}
         >
           <div 
-            className="w-full max-w-[424px] bg-black border-t-2 border-x-2 border-white overflow-hidden flex flex-col animate-slide-up"
+            className={`w-full max-w-[424px] bg-black border-t-2 border-x-2 border-white overflow-hidden flex flex-col ${isTradeModalActive ? 'slide-up' : 'slide-down'}`}
             onClick={(e) => e.stopPropagation()}
             style={{ maxHeight: '80vh' }}
           >
