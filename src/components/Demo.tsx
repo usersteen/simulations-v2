@@ -1,12 +1,9 @@
 "use client";
 
-import { useEffect, useCallback, useState, useMemo } from "react";
+import { useEffect, useCallback, useState } from "react";
 import Image from "next/image";
 import { Input } from "../components/ui/input";
-import sdk, {
-  FrameNotificationDetails,
-  type Context,
-} from "@farcaster/frame-sdk";
+import sdk from "@farcaster/frame-sdk";
 import {
   useAccount,
   useSendTransaction,
@@ -18,7 +15,6 @@ import {
 } from "wagmi";
 
 import { config } from "~/components/providers/WagmiProvider";
-import { base, degen, mainnet, optimism, unichain } from "wagmi/chains";
 import { parseEther, formatEther } from "viem";
 import { createStore } from "mipd";
 import { useZoraCoin } from "~/components/hooks/useZoraCoin";
@@ -95,9 +91,6 @@ export default function Demo() {
   }, []);
 
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
-  const [context, setContext] = useState<Context.FrameContext>();
-  const [txHash, setTxHash] = useState<string | null>(null);
-  const [notificationDetails, setNotificationDetails] = useState<FrameNotificationDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isErrorVisible, setIsErrorVisible] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
@@ -127,38 +120,24 @@ export default function Demo() {
     setTimeout(() => setIsErrorVisible(false), 3000);
   }, []);
 
-  const { sendTransaction } = useSendTransaction({
+  // Transaction handling
+  const { data: hash } = useSendTransaction({
     mutation: {
       onError: (error) => {
         handleError(error.message || 'Transaction failed');
       },
-      onSuccess: (hash) => {
-        setTxHash(hash);
+      onSuccess: () => {
         handleSuccess();
       }
     }
   });
 
   useWaitForTransactionReceipt({
-    hash: txHash as `0x${string}`,
+    hash,
     onReplaced: () => handleSuccess()
   });
 
   const { connect } = useConnect();
-
-  const nextChain = useMemo(() => {
-    if (chainId === base.id) {
-      return optimism;
-    } else if (chainId === optimism.id) {
-      return degen;
-    } else if (chainId === degen.id) {
-      return mainnet;
-    } else if (chainId === mainnet.id) {
-      return unichain;
-    } else {
-      return base;
-    }
-  }, [chainId]);
 
   // Zora integration
   const targetCoinAddress = "0xdcb492364375a425547fedd3bbe66904994c6182" as `0x${string}`;
@@ -280,23 +259,8 @@ export default function Demo() {
   useEffect(() => {
     const load = async () => {
       try {
-        const context = await sdk.context;
-        setContext(context);
-        
-        if (context?.client) {
-          setNotificationDetails(context.client.notificationDetails ?? null);
-        }
-
         // Initialize SDK
         sdk.actions.ready({});
-
-        // Initialize store
-        const store = createStore();
-        store.subscribe((providerDetails) => {
-          if (providerDetails) {
-            console.log("Provider details updated:", providerDetails);
-          }
-        });
       } catch (error) {
         handleError(error instanceof Error ? error.message : "Failed to load SDK");
       }
@@ -534,30 +498,38 @@ export default function Demo() {
       {/* Toast Error */}
       {isErrorVisible && error && (
         <div 
-          className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-4 bg-red-500 text-white rounded-lg font-mono text-base min-w-[200px] text-center shadow-lg ${
-            isErrorVisible ? 'animate-slide-up' : 'animate-fade-out'
-          } cursor-pointer`}
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsErrorVisible(false);
-          }}
+          className={`fixed inset-0 flex items-center justify-center z-50 pointer-events-none`}
         >
-          {error}
+          <div 
+            className={`p-4 bg-red-500 text-white rounded-lg font-mono text-base min-w-[200px] text-center shadow-lg ${
+              isErrorVisible ? 'animate-slide-up' : 'animate-fade-out'
+            } pointer-events-auto cursor-pointer`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsErrorVisible(false);
+            }}
+          >
+            {error}
+          </div>
         </div>
       )}
 
       {/* Toast Success */}
       {isSuccessVisible && success && (
         <div 
-          className={`fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-4 bg-green-500 text-white rounded-lg font-mono text-base min-w-[200px] text-center shadow-lg ${
-            isSuccessVisible ? 'animate-slide-up' : 'animate-fade-out'
-          } cursor-pointer`}
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsSuccessVisible(false);
-          }}
+          className={`fixed inset-0 flex items-center justify-center z-50 pointer-events-none`}
         >
-          {success}
+          <div 
+            className={`p-4 bg-green-500 text-white rounded-lg font-mono text-base min-w-[200px] text-center shadow-lg ${
+              isSuccessVisible ? 'animate-slide-up' : 'animate-fade-out'
+            } pointer-events-auto cursor-pointer`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsSuccessVisible(false);
+            }}
+          >
+            {success}
+          </div>
         </div>
       )}
     </div>
