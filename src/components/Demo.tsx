@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useMemo } from "react";
 import Image from "next/image";
 import { Input } from "../components/ui/input";
 import sdk from "@farcaster/frame-sdk";
@@ -9,14 +9,12 @@ import {
   useSendTransaction,
   useWaitForTransactionReceipt,
   useConnect,
-  useChainId,
   useWalletClient,
   useBalance,
 } from "wagmi";
 
 import { config } from "~/components/providers/WagmiProvider";
 import { parseEther, formatEther } from "viem";
-import { createStore } from "mipd";
 import { useZoraCoin } from "~/components/hooks/useZoraCoin";
 import { formatCurrency, formatNumber } from "~/lib/utils";
 
@@ -106,75 +104,34 @@ export default function Demo() {
   const [isTradeModalActive, setIsTradeModalActive] = useState(false);
 
   const { address, isConnected } = useAccount();
-  const chainId = useChainId();
-
-  const handleSuccess = useCallback(() => {
-    setSuccess('Operation completed successfully');
-    setIsSuccessVisible(true);
-    setTimeout(() => setIsSuccessVisible(false), 3000);
-  }, []);
-
-  const handleError = useCallback((message: string) => {
-    setError(message);
-    setIsErrorVisible(true);
-    setTimeout(() => setIsErrorVisible(false), 3000);
-  }, []);
-
-  // Transaction handling
-  const { data: hash } = useSendTransaction({
-    mutation: {
-      onError: (error) => {
-        handleError(error.message || 'Transaction failed');
-      },
-      onSuccess: () => {
-        handleSuccess();
-      }
-    }
-  });
-
-  useWaitForTransactionReceipt({
-    hash,
-    onReplaced: () => handleSuccess()
-  });
-
   const { connect } = useConnect();
+  const { data: walletClient } = useWalletClient();
 
   // Zora integration
   const targetCoinAddress = "0xdcb492364375a425547fedd3bbe66904994c6182" as `0x${string}`;
-  const { data: walletClient } = useWalletClient();
   const {
     coinDetails,
+    onchainDetails,
     isLoading: isZoraLoading,
     error: zoraError,
-    getCoinInfo,
     trade,
-    onchainDetails
+    getCoinInfo
   } = useZoraCoin(targetCoinAddress);
 
-  // Get ETH balance
-  const { data: ethBalance } = useBalance({
-    address: address as `0x${string}`,
-  });
+  // Error and success handling
+  const handleError = useCallback((message: string) => {
+    setError(message);
+    setIsErrorVisible(true);
+    setTimeout(() => setIsErrorVisible(false), 5000);
+  }, []);
 
-  // Load coin info when component mounts
-  useEffect(() => {
-    getCoinInfo();
-  }, [getCoinInfo]);
+  const handleSuccess = useCallback(() => {
+    setSuccess("Transaction successful!");
+    setIsSuccessVisible(true);
+    setTimeout(() => setIsSuccessVisible(false), 5000);
+  }, []);
 
-  // Debug coin details
-  useEffect(() => {
-    if (coinDetails) {
-      console.log('Coin Details:', coinDetails);
-    }
-  }, [coinDetails]);
-
-  // Handle Zora errors
-  useEffect(() => {
-    if (zoraError) {
-      handleError(zoraError.message);
-    }
-  }, [zoraError, handleError]);
-
+  // Buy and sell handlers
   const handleBuy = useCallback(async () => {
     if (!walletClient || !buyAmount) return;
     try {
@@ -203,11 +160,92 @@ export default function Demo() {
     }
   }, [walletClient, trade, getCoinInfo, sellAmount, handleError, handleSuccess]);
 
+  // Transaction handling
+  const handleTransaction = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isBuyTab) {
+      handleBuy();
+    } else {
+      handleSell();
+    }
+  }, [isBuyTab, handleBuy, handleSell]);
+
+  const { data: hash } = useSendTransaction({
+    mutation: {
+      onError: (error) => {
+        handleError(error.message || 'Transaction failed');
+      },
+      onSuccess: () => {
+        handleSuccess();
+      }
+    }
+  });
+
+  useWaitForTransactionReceipt({
+    hash,
+    onReplaced: () => handleSuccess()
+  });
+
+  // Get ETH balance
+  const { data: ethBalance } = useBalance({
+    address: address as `0x${string}`,
+  });
+
+  // Load coin info when component mounts
+  useEffect(() => {
+    getCoinInfo();
+  }, [getCoinInfo]);
+
+  // Debug coin details
+  useEffect(() => {
+    if (coinDetails) {
+      console.log('Coin Details:', coinDetails);
+    }
+  }, [coinDetails]);
+
+  // Effect to handle Zora errors
+  useEffect(() => {
+    if (zoraError) {
+      handleError(zoraError.message || "Error with Zora integration");
+    }
+  }, [zoraError, handleError]);
+
+  // Format balance display
+  const formattedBalance = useMemo(() => {
+    if (!onchainDetails?.balance) return "0";
+    return formatNumber(Number(formatEther(onchainDetails.balance)));
+  }, [onchainDetails]);
+
+  // Format price display
+  const formattedPrice = useMemo(() => {
+    if (!coinDetails?.totalVolume) return "0";
+    return formatCurrency(coinDetails.totalVolume);
+  }, [coinDetails]);
+
+  // Format market cap display
+  const formattedMarketCap = useMemo(() => {
+    if (!coinDetails?.marketCap) return "0";
+    return formatCurrency(coinDetails.marketCap);
+  }, [coinDetails]);
+
+  // Display balance
+  const displayBalance = useMemo(() => {
+    if (isBuyTab) {
+      return ethBalance ? `${formatEther(ethBalance.value)} ETH` : 'Loading...';
+    } else {
+      return `${onchainDetails?.balance ? formattedBalance : '0'} ${coinDetails?.symbol || 'tokens'}`;
+    }
+  }, [isBuyTab, ethBalance, onchainDetails?.balance, formattedBalance, coinDetails?.symbol]);
+
+  // Add to amount handler
   const addToAmount = useCallback((amount: string) => {
     if (isBuyTab) {
       const currentAmount = parseFloat(buyAmount) || 0;
-      const addAmount = amount === 'Max' ? (ethBalance ? parseFloat(formatEther(ethBalance.value)) : 0) : parseFloat(amount);
-      setBuyAmount((currentAmount + addAmount).toString());
+      if (amount === 'Max' && ethBalance) {
+        setBuyAmount(formatEther(ethBalance.value));
+      } else {
+        setBuyAmount((currentAmount + parseFloat(amount)).toString());
+      }
     } else {
       const currentAmount = parseFloat(sellAmount) || 0;
       const maxTokens = onchainDetails?.balance ? Number(formatEther(onchainDetails.balance)) : 0;
@@ -255,11 +293,10 @@ export default function Demo() {
     }
   }, [isTradeVisible]);
 
-  // Initialize SDK
+  // Effect to initialize SDK
   useEffect(() => {
     const load = async () => {
       try {
-        // Initialize SDK
         sdk.actions.ready({});
       } catch (error) {
         handleError(error instanceof Error ? error.message : "Failed to load SDK");
@@ -352,8 +389,8 @@ export default function Demo() {
                 {/* Token Info */}
                 <div className="text-white space-y-2 mb-8 font-mono text-center">
                   <p className="text-xl">{coinDetails?.name} (${coinDetails?.symbol})</p>
-                  <p className="mt-6 text-[13px]">mcap: {formatCurrency(coinDetails?.marketCap)} | vol: {formatCurrency(coinDetails?.totalVolume)}</p>
-                  <p className="text-[13px]">holders: {formatNumber(coinDetails?.uniqueHolders)} | earnings: {formatCurrency(coinDetails?.creatorEarnings?.[0]?.amountUsd)}</p>
+                  <p className="mt-6 text-[13px]">mcap: {formattedMarketCap} | vol: {formattedPrice}</p>
+                  <p className="text-[13px]">holders: {formattedBalance} | earnings: {formatCurrency(coinDetails?.creatorEarnings?.[0]?.amountUsd)}</p>
                 </div>
 
                 {/* Description */}
@@ -427,49 +464,23 @@ export default function Demo() {
 
             <div className="flex-1 overflow-auto p-4">
               <div className="text-white font-mono text-[13px] mb-4">
-                {isBuyTab 
-                  ? `Your Balance: ${ethBalance ? `${formatEther(ethBalance.value)} ETH` : 'Loading...'}`
-                  : `Your Balance: ${onchainDetails?.balance ? formatNumber(Number(formatEther(onchainDetails.balance)), 2) : '0'} ${coinDetails?.symbol || 'tokens'}`
-                }
+                {displayBalance}
               </div>
 
               {isConnected ? (
                 <div className="space-y-4">
                   <Input
-                    type="text"
+                    type="number"
+                    placeholder={isBuyTab ? "Enter ETH amount" : "Enter ZORA amount"}
                     value={isBuyTab ? buyAmount : sellAmount}
                     onChange={(e) => isBuyTab ? setBuyAmount(e.target.value) : setSellAmount(e.target.value)}
-                    placeholder={`${isBuyTab ? 'Buy' : 'Sell'} amount ${isBuyTab ? '(ETH)' : '(Tokens)'}`}
-                    className="w-full bg-transparent text-white border-white/50 font-mono text-[13px] px-3 py-2 rounded-none"
+                    className="bg-transparent text-white border-white font-mono text-[13px]"
                   />
-                  
-                  <div className="grid grid-cols-4 gap-2">
-                    {isBuyTab ? (
-                      <>
-                        <button onClick={() => addToAmount('0.001')} className="text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors">0.001</button>
-                        <button onClick={() => addToAmount('0.01')} className="text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors">0.01</button>
-                        <button onClick={() => addToAmount('0.1')} className="text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors">0.1</button>
-                        <button onClick={() => addToAmount('Max')} className="text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors">Max</button>
-                      </>
-                    ) : (
-                      <>
-                        <button onClick={() => addToAmount('25')} className="text-white border border-white/50 font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors">25%</button>
-                        <button onClick={() => addToAmount('50')} className="text-white border border-white/50 font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors">50%</button>
-                        <button onClick={() => addToAmount('75')} className="text-white border border-white/50 font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors">75%</button>
-                        <button onClick={() => addToAmount('100')} className="text-white border border-white/50 font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors">100%</button>
-                      </>
-                    )}
-                  </div>
-
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      isBuyTab ? handleBuy() : handleSell();
-                    }}
-                    disabled={isZoraLoading || (isBuyTab ? !buyAmount : !sellAmount)}
-                    className="w-full bg-transparent text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors disabled:opacity-50 mt-4"
+                  <button
+                    onClick={handleTransaction}
+                    className="w-full bg-transparent text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors"
                   >
-                    {isBuyTab ? 'Buy' : 'Sell'}
+                    {isBuyTab ? "Buy ZORA" : "Sell ZORA"}
                   </button>
                 </div>
               ) : (
