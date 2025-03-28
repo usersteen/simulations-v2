@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import App from "~/app/app";
+import Demo from "~/components/Demo";
 
 const appUrl = process.env.NEXT_PUBLIC_URL;
 
@@ -31,5 +31,5 @@ export const metadata: Metadata = {
 };
 
 export default function HelloFrame() {
-  return <App title={"Hello, world!"} />;
+  return <Demo />;
 }
