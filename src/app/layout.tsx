@@ -14,12 +14,23 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await getSession()
+  let session;
+  try {
+    session = await getSession();
+  } catch (error) {
+    console.error('Session error:', error);
+    session = null;
+  }
   
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      </head>
       <body suppressHydrationWarning>
-        <Providers session={session}>{children}</Providers>
+        <Providers session={session}>
+          <main>{children}</main>
+        </Providers>
       </body>
     </html>
   );
