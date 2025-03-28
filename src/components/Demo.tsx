@@ -237,25 +237,6 @@ export default function Demo() {
     }
   }, [isBuyTab, ethBalance, onchainDetails?.balance, formattedBalance, coinDetails?.symbol]);
 
-  // Add to amount handler
-  const addToAmount = useCallback((amount: string) => {
-    if (isBuyTab) {
-      const currentAmount = parseFloat(buyAmount) || 0;
-      if (amount === 'Max' && ethBalance) {
-        setBuyAmount(formatEther(ethBalance.value));
-      } else {
-        setBuyAmount((currentAmount + parseFloat(amount)).toString());
-      }
-    } else {
-      const currentAmount = parseFloat(sellAmount) || 0;
-      const maxTokens = onchainDetails?.balance ? Number(formatEther(onchainDetails.balance)) : 0;
-      const addAmount = amount === 'Max' 
-        ? maxTokens 
-        : (maxTokens * parseFloat(amount) / 100);
-      setSellAmount((currentAmount + addAmount).toString());
-    }
-  }, [buyAmount, sellAmount, isBuyTab, ethBalance, onchainDetails?.balance]);
-
   const toggleTrade = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     setIsTradeVisible(prev => !prev);
