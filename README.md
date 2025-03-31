@@ -81,6 +81,162 @@ Implemented via Wagmi:
 - Token information display
 - Transaction status indicators
 
+## 🏗️ System Architecture
+
+### Core Integration Flow
+```mermaid
+graph TD
+    A[Farcaster Frame] --> B[Next.js App]
+    B --> C[Zora Integration]
+    B --> D[Wallet Connection]
+    C --> E[Trade Execution]
+    D --> E
+```
+
+### Key Integration Points
+- **Frame-to-App Communication**: Handled via `@farcaster/frame-sdk`
+- **Zora Integration**: Managed through `@zoralabs/coins-sdk`
+- **Wallet Integration**: Implemented via `wagmi` and `viem`
+- **State Management**: React hooks and context
+
+## 🧩 Core Components
+
+### Frame Components
+- `Demo.tsx`: Main frame component handling trade interface and interactions
+  - Manages trade modal and overlay system
+  - Handles wallet connection flow
+  - Implements buy/sell functionality
+- `AddFrameButton.tsx`: Handles frame subscription and notifications
+  - Manages frame metadata
+  - Handles notification permissions
+
+### Integration Components
+- `WagmiProvider.tsx`: Configures wallet connections and chain settings
+  - Sets up supported chains
+  - Configures RPC endpoints
+  - Manages wallet connections
+- `useZoraCoin.tsx`: Custom hook managing Zora token interactions
+  - Fetches token information
+  - Handles trade execution
+  - Manages token state
+
+### UI Components
+- Trade modal with buy/sell interface
+- Token information display
+- Transaction status notifications
+- Responsive overlay system
+
+## 📊 State Management
+
+### Key State Objects
+- **Trade State**: Manages buy/sell amounts and transaction flow
+  ```typescript
+  const [buyAmount, setBuyAmount] = useState<string>('');
+  const [sellAmount, setSellAmount] = useState<string>('');
+  ```
+- **UI State**: Controls modal visibility and animations
+  ```typescript
+  const [isOverlayVisible, setIsOverlayVisible] = useState(false);
+  const [isTradeVisible, setIsTradeVisible] = useState(false);
+  ```
+- **Wallet State**: Tracks connection status and balances
+  ```typescript
+  const { address, isConnected } = useAccount();
+  const { data: ethBalance } = useBalance({...});
+  ```
+- **Token State**: Maintains token information and pricing
+  ```typescript
+  const { coinDetails, onchainDetails } = useZoraCoin(targetCoinAddress);
+  ```
+
+### State Flow
+1. User initiates action (buy/sell/connect)
+2. State updates trigger UI changes
+3. External calls execute (Zora/wallet)
+4. Results update relevant state
+
+## 🔧 Development Patterns
+
+### Error Handling
+- Centralized error management via toast notifications
+- Transaction error recovery
+- Network error handling
+- Custom error hooks for consistent handling
+
+### Animation System
+- CSS keyframe animations for modals
+- State-based animation triggers
+- Transition management
+- Smooth UI transitions
+
+### API Integration Pattern
+- Async operation wrapper pattern
+- Error boundary implementation
+- Loading state management
+- Rate limiting and retry logic
+
+## 🧪 Testing Strategy
+
+### Unit Tests
+- Component rendering tests
+  - Modal behavior
+  - Button interactions
+  - Form validation
+- Hook behavior tests
+  - State management
+  - Side effects
+  - Error handling
+- Utility function tests
+  - Format functions
+  - Calculations
+  - Validation
+
+### Integration Tests
+- Frame interaction tests
+  - Frame loading
+  - User interactions
+  - State transitions
+- Wallet connection flow
+  - Connection states
+  - Network switching
+  - Balance updates
+- Trade execution flow
+  - Order creation
+  - Transaction signing
+  - Confirmation handling
+
+### E2E Tests
+- Full user journey tests
+  - Connect wallet
+  - Execute trade
+  - Handle notifications
+- Frame-to-trade flow
+  - Frame initialization
+  - Trade completion
+  - Success/failure states
+- Error scenarios
+  - Network errors
+  - Transaction failures
+  - Invalid inputs
+
+## 🔍 Troubleshooting Guide
+
+### Common Issues
+1. Frame not loading
+   - Check SDK initialization
+   - Verify frame metadata
+   - Confirm URL configuration
+   
+2. Trade failures
+   - Verify token contract
+   - Check slippage settings
+   - Confirm gas settings
+   
+3. Wallet connection issues
+   - Confirm chain configuration
+   - Check wallet compatibility
+   - Verify network status
+
 ## 📝 Implementation Examples
 
 ### Zora Hook Implementation

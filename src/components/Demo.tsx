@@ -12,6 +12,7 @@ import {
   useWalletClient,
   useBalance,
 } from "wagmi";
+import { AddFrameButton } from "../components/ui/AddFrameButton";
 
 import { config } from "~/components/providers/WagmiProvider";
 import { parseEther, formatEther } from "viem";
@@ -102,6 +103,7 @@ export default function Demo() {
   const [isOverlayActive, setIsOverlayActive] = useState(false);
   const [isTradeModalMounted, setIsTradeModalMounted] = useState(false);
   const [isTradeModalActive, setIsTradeModalActive] = useState(false);
+  const [isPulsing, setIsPulsing] = useState(false);
 
   const { address, isConnected } = useAccount();
   const { connect } = useConnect();
@@ -159,6 +161,20 @@ export default function Demo() {
       handleError("Error selling coin");
     }
   }, [walletClient, trade, getCoinInfo, sellAmount, handleError, handleSuccess]);
+
+  // Add new handlers for preset amounts
+  const handlePresetBuy = useCallback((amount: string) => {
+    const currentAmount = buyAmount ? parseFloat(buyAmount) : 0;
+    const newAmount = currentAmount + parseFloat(amount);
+    setBuyAmount(newAmount.toString());
+  }, [buyAmount]);
+
+  const handlePresetSell = useCallback((percentage: number) => {
+    if (!onchainDetails?.balance) return;
+    const balance = Number(formatEther(onchainDetails.balance));
+    const amount = (balance * percentage) / 100;
+    setSellAmount(amount.toString());
+  }, [onchainDetails?.balance]);
 
   // Transaction handling
   const handleTransaction = useCallback((e: React.MouseEvent) => {
@@ -231,11 +247,11 @@ export default function Demo() {
   // Display balance
   const displayBalance = useMemo(() => {
     if (isBuyTab) {
-      return ethBalance ? `${formatEther(ethBalance.value)} ETH` : 'Loading...';
+      return ethBalance ? `Balance: ${Number(formatEther(ethBalance.value)).toFixed(6)} ETH` : 'Loading...';
     } else {
-      return `${onchainDetails?.balance ? formattedBalance : '0'} ${coinDetails?.symbol || 'tokens'}`;
+      return `Balance: ${onchainDetails?.balance ? formattedBalance : '0'} SIMS`;
     }
-  }, [isBuyTab, ethBalance, onchainDetails?.balance, formattedBalance, coinDetails?.symbol]);
+  }, [isBuyTab, ethBalance, onchainDetails?.balance, formattedBalance]);
 
   const toggleTrade = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -274,6 +290,16 @@ export default function Demo() {
     }
   }, [isTradeVisible]);
 
+  // Pulse animation effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIsPulsing(true);
+      setTimeout(() => setIsPulsing(false), 1000);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   // Effect to initialize SDK
   useEffect(() => {
     const load = async () => {
@@ -309,13 +335,18 @@ export default function Demo() {
           role="button"
           tabIndex={0}
         >
-          <Image 
-            src={coinDetails.mediaContent.previewImage.medium} 
-            alt={coinDetails.name}
-            width={600}
-            height={600}
-            className="max-w-[600px] rotate-90 object-contain"
-          />
+          <div 
+            className="transition-transform duration-1000 border-2 border-white"
+            style={{ transform: `scale(${isPulsing ? 1.02 : 1}) rotate(90deg)` }}
+          >
+            <Image 
+              src={coinDetails.mediaContent.previewImage.medium} 
+              alt={coinDetails.name}
+              width={600}
+              height={600}
+              className="max-w-[600px] object-contain"
+            />
+          </div>
         </div>
       )}
 
@@ -351,11 +382,11 @@ export default function Demo() {
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-auto flex items-center">
-              <div className="w-full p-4">
+              <div className="w-full py-16 px-4">
                 {/* Token Icon */}
                 {coinDetails?.mediaContent?.previewImage?.small && (
-                  <div className="flex justify-center mb-6">
-                    <div className="w-24 h-24 overflow-hidden">
+                  <div className="flex justify-center mb-8">
+                    <div className="w-20 h-20 overflow-hidden">
                       <Image 
                         src={coinDetails.mediaContent.previewImage.small} 
                         alt={coinDetails.name}
@@ -368,24 +399,51 @@ export default function Demo() {
                 )}
 
                 {/* Token Info */}
-                <div className="text-white space-y-2 mb-8 font-mono text-center">
-                  <p className="text-xl">{coinDetails?.name} (${coinDetails?.symbol})</p>
-                  <p className="mt-6 text-[13px]">mcap: {formattedMarketCap} | vol: {formattedPrice}</p>
-                  <p className="text-[13px]">holders: {formattedBalance} | earnings: {formatCurrency(coinDetails?.creatorEarnings?.[0]?.amountUsd)}</p>
+                <div className="text-white space-y-2 mb-10 font-mono text-center">
+                  <p className="text-xl mb-6">{coinDetails?.name} (${coinDetails?.symbol})</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="border border-gray-800 p-3 flex items-center justify-between">
+                      <div className="text-gray-500 text-[11px]">mcap</div>
+                      <div className="text-[13px]">{formattedMarketCap}</div>
+                    </div>
+                    <div className="border border-gray-800 p-3 flex items-center justify-between">
+                      <div className="text-gray-500 text-[11px]">holders</div>
+                      <div className="text-[13px]">{coinDetails?.uniqueHolders}</div>
+                    </div>
+                    <div className="border border-gray-800 p-3 flex items-center justify-between">
+                      <div className="text-gray-500 text-[11px]">vol</div>
+                      <div className="text-[13px]">{formattedPrice}</div>
+                    </div>
+                    <div className="border border-gray-800 p-3 flex items-center justify-between">
+                      <div className="text-gray-500 text-[11px]">24hr vol</div>
+                      <div className="text-[13px]">{formatCurrency(coinDetails?.volume24h)}</div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Description */}
-                <div className="text-white space-y-4 mb-8 font-mono text-[13px] text-center">
+                <div className="text-white space-y-4 mb-10 font-mono text-[13px] text-center">
                   <p>
-                    cover art for &apos;simulations,&apos; a fungible art project about my relationship with screens.
-                  </p>
-                  <p>4k cc0.</p>
+                    cover art for &apos;simulations,&apos; a fungible art project about my relationship with screens. 4k cc0.</p>
                   <p>
                     .15% of volume through this frame will buy/burn $sims via Splits Swapper.
                   </p>
                   <p>
-                    full gallery soon.
+                    full gallery soon. add frame for notis.
                   </p>
+                </div>
+
+                {/* Add Frame Button */}
+                <div className="mb-0">
+                  <AddFrameButton 
+                    onSuccess={(notificationDetails) => {
+                      if (notificationDetails) {
+                        console.log('Frame added with notifications:', notificationDetails);
+                      }
+                      handleSuccess();
+                    }}
+                    onError={handleError}
+                  />
                 </div>
               </div>
             </div>
@@ -452,16 +510,76 @@ export default function Demo() {
                 <div className="space-y-4">
                   <Input
                     type="number"
-                    placeholder={isBuyTab ? "Enter ETH amount" : "Enter ZORA amount"}
+                    placeholder={isBuyTab ? "Enter ETH amount" : "Enter sims amount"}
                     value={isBuyTab ? buyAmount : sellAmount}
                     onChange={(e) => isBuyTab ? setBuyAmount(e.target.value) : setSellAmount(e.target.value)}
-                    className="bg-transparent text-white border-white font-mono text-[13px]"
+                    className="bg-transparent text-white border-white font-mono text-[13px] rounded-none"
                   />
+                  
+                  {/* Preset Amount Buttons */}
+                  <div className="grid grid-cols-4 gap-2">
+                    {isBuyTab ? (
+                      <>
+                        <button
+                          onClick={() => handlePresetBuy("0.001")}
+                          className="bg-transparent text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors"
+                        >
+                          +0.001 ETH
+                        </button>
+                        <button
+                          onClick={() => handlePresetBuy("0.01")}
+                          className="bg-transparent text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors"
+                        >
+                          +0.01 ETH
+                        </button>
+                        <button
+                          onClick={() => handlePresetBuy("0.1")}
+                          className="bg-transparent text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors"
+                        >
+                          +0.1 ETH
+                        </button>
+                        <button
+                          onClick={() => handlePresetBuy("0.5")}
+                          className="bg-transparent text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors"
+                        >
+                          +0.5 ETH
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handlePresetSell(25)}
+                          className="bg-transparent text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors"
+                        >
+                          25%
+                        </button>
+                        <button
+                          onClick={() => handlePresetSell(50)}
+                          className="bg-transparent text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors"
+                        >
+                          50%
+                        </button>
+                        <button
+                          onClick={() => handlePresetSell(75)}
+                          className="bg-transparent text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors"
+                        >
+                          75%
+                        </button>
+                        <button
+                          onClick={() => handlePresetSell(100)}
+                          className="bg-transparent text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors"
+                        >
+                          100%
+                        </button>
+                      </>
+                    )}
+                  </div>
+
                   <button
                     onClick={handleTransaction}
                     className="w-full bg-transparent text-white border border-white font-mono text-[13px] py-2 hover:bg-white hover:text-black transition-colors"
                   >
-                    {isBuyTab ? "Buy ZORA" : "Sell ZORA"}
+                    {isBuyTab ? "Buy SIMS" : "Sell SIMS"}
                   </button>
                 </div>
               ) : (

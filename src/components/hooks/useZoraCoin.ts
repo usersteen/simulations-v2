@@ -11,6 +11,7 @@ interface ZoraApiResponse {
   description?: string;
   marketCap?: string | number;
   totalVolume?: string | number;
+  volume24h?: string | number;
   uniqueHolders?: string | number;
   creatorEarnings?: Array<{
     amount?: {
@@ -39,6 +40,7 @@ interface CoinDetails {
   description?: string;
   marketCap: number;
   totalVolume: number;
+  volume24h: number;
   uniqueHolders: number;
   creatorEarnings: Array<{
     amountUsd: number;
@@ -65,22 +67,21 @@ function convertToCoinDetails(data: ZoraApiResponse | null): CoinDetails | null 
   // Convert string numbers to actual numbers
   const marketCap = typeof data.marketCap === 'string' ? parseFloat(data.marketCap) : data.marketCap;
   const totalVolume = typeof data.totalVolume === 'string' ? parseFloat(data.totalVolume) : data.totalVolume;
-  const uniqueHolders = typeof data.uniqueHolders === 'string' ? parseInt(data.uniqueHolders) : data.uniqueHolders;
+  const volume24h = typeof data.volume24h === 'string' ? parseFloat(data.volume24h) : data.volume24h ?? 0;
+  const uniqueHolders = typeof data.uniqueHolders === 'string' ? parseInt(data.uniqueHolders) : data.uniqueHolders ?? 0;
 
   if (
     typeof marketCap !== 'number' ||
-    typeof totalVolume !== 'number' ||
-    typeof uniqueHolders !== 'number' ||
-    !Array.isArray(data.creatorEarnings)
+    typeof totalVolume !== 'number'
   ) {
     return null;
   }
 
   // Convert creator earnings
-  const creatorEarnings = data.creatorEarnings.map(earning => ({
+  const creatorEarnings = data.creatorEarnings?.map(earning => ({
     amountUsd: parseFloat(earning.amountUsd || '0'),
     amountRaw: earning.amount?.amountRaw || '0'
-  }));
+  })) || [];
 
   // Create a new object that matches our CoinDetails interface
   return {
@@ -90,6 +91,7 @@ function convertToCoinDetails(data: ZoraApiResponse | null): CoinDetails | null 
     description: data.description,
     marketCap,
     totalVolume,
+    volume24h,
     uniqueHolders,
     creatorEarnings,
     mediaContent: data.mediaContent
