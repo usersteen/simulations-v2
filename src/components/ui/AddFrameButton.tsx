@@ -27,7 +27,11 @@ export function AddFrameButton({ onSuccess, onError }: AddFrameButtonProps) {
   }, []);
 
   const handleAddFrame = useCallback(async () => {
-    console.log('🔍 Starting frame addition process...');
+    console.log('🔍 Starting frame addition process...', {
+      currentUrl: window.location.href,
+      currentHostname: window.location.hostname,
+      currentProtocol: window.location.protocol
+    });
     
     try {
       // 1. Verify frame context is initialized
@@ -47,10 +51,13 @@ export function AddFrameButton({ onSuccess, onError }: AddFrameButtonProps) {
       // 2. Verify manifest is accessible
       console.log('📄 Checking manifest accessibility...');
       try {
-        const manifestResponse = await fetch('/.well-known/farcaster.json');
+        const manifestUrl = `${window.location.origin}/.well-known/farcaster.json`;
+        console.log('📄 Attempting to fetch manifest from:', manifestUrl);
+        const manifestResponse = await fetch(manifestUrl);
         console.log('📄 Manifest response:', {
           status: manifestResponse.status,
-          ok: manifestResponse.ok
+          ok: manifestResponse.ok,
+          url: manifestResponse.url
         });
 
         if (!manifestResponse.ok) {
@@ -62,6 +69,13 @@ export function AddFrameButton({ onSuccess, onError }: AddFrameButtonProps) {
 
         const manifest = await manifestResponse.json();
         console.log('📄 Manifest content:', manifest);
+
+        // Add validation for domain match
+        const currentDomain = window.location.hostname;
+        console.log('📄 Validating domains:', {
+          currentDomain,
+          manifestDomain: manifest.frame.homeUrl
+        });
 
         if (!manifest.frame || !manifest.accountAssociation) {
           const error = 'Invalid manifest structure';
