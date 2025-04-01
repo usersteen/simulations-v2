@@ -19,28 +19,15 @@ interface AddFrameButtonProps {
 
 export function AddFrameButton({ onSuccess, onError }: AddFrameButtonProps) {
   const [isAdded, setIsAdded] = useState(false);
-  const [hasAttemptedThisSession, setHasAttemptedThisSession] = useState(false);
   
   // Check localStorage on mount
   useEffect(() => {
     const added = localStorage.getItem('frameAdded') === 'true';
-    const attempted = sessionStorage.getItem('frameAttempted') === 'true';
     setIsAdded(added);
-    setHasAttemptedThisSession(attempted);
   }, []);
 
   const handleAddFrame = useCallback(async () => {
-    // If we've already attempted in this session, don't try again
-    if (hasAttemptedThisSession) {
-      console.log('Already attempted to add frame this session');
-      return;
-    }
-
     try {
-      // Mark that we've attempted in this session
-      setHasAttemptedThisSession(true);
-      sessionStorage.setItem('frameAttempted', 'true');
-
       const result = await sdk.actions.addFrame() as AddFrameResult;
       
       if (result?.added) {
@@ -51,37 +38,30 @@ export function AddFrameButton({ onSuccess, onError }: AddFrameButtonProps) {
         } else {
           onSuccess?.();
         }
-      } else {
-        // Don't show error for rejected_by_user if we've already attempted this session
-        if (result?.reason === 'rejected_by_user' && hasAttemptedThisSession) {
-          return;
-        }
-        
-        const errorMessage = result?.reason === 'invalid_domain_manifest' 
-          ? 'Invalid frame configuration. Please verify your manifest.' 
-          : result?.reason === 'rejected_by_user'
-          ? 'Frame addition was rejected'
-          : 'Failed to add frame';
-        onError?.(errorMessage);
+      } else if (result?.reason === 'invalid_domain_manifest') {
+        onError?.('Invalid frame configuration. Please verify your manifest.');
       }
+      // Don't show error for user rejection - it's a normal user action
     } catch (error) {
       console.error('Error adding frame:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to add frame';
-      onError?.(errorMessage);
+      // Only show technical errors to user
+      if (!(error instanceof Error && error.message.includes('RejectedByUser'))) {
+        onError?.(error instanceof Error ? error.message : 'Failed to add frame');
+      }
     }
-  }, [hasAttemptedThisSession, onSuccess, onError]);
+  }, [onSuccess, onError]);
 
   return (
     <button
       onClick={handleAddFrame}
-      disabled={isAdded || hasAttemptedThisSession}
+      disabled={isAdded}
       className={`w-full bg-transparent text-white border border-white font-mono text-[13px] py-2 
-        ${(isAdded || hasAttemptedThisSession)
+        ${isAdded 
           ? 'opacity-50 cursor-not-allowed' 
           : 'hover:bg-white hover:text-black transition-colors'
         }`}
     >
-      {isAdded ? 'Frame Added' : hasAttemptedThisSession ? 'Already Attempted' : 'Add Frame'}
+      {isAdded ? 'Frame Added' : 'Add Frame'}
     </button>
   );
 }
