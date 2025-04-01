@@ -91,17 +91,29 @@ export function AddFrameButton({ onSuccess, onError }: AddFrameButtonProps) {
 
       // 3. Attempt to add frame
       console.log('➕ Attempting to add frame...');
-      const result = await sdk.actions.addFrame() as AddFrameResult;
-      console.log('✨ Add frame result:', result);
+      let result;
+      try {
+        result = await sdk.actions.addFrame() as AddFrameResult;
+        console.log('✨ Add frame result:', result);
+      } catch (addFrameError) {
+        console.log('⚠️ Add frame returned error but may have succeeded:', addFrameError);
+        // Check localStorage to see if we previously recorded this frame as added
+        const wasAdded = localStorage.getItem('frameAdded') === 'true';
+        if (wasAdded) {
+          console.log('✅ Frame was previously added, ignoring error');
+          return;
+        }
+        throw addFrameError; // Re-throw if we haven't recorded this frame as added
+      }
       
-      if (!result.added) {
-        const errorMessage = result.reason === 'invalid_domain_manifest' 
+      if (!result?.added) {
+        const errorMessage = result?.reason === 'invalid_domain_manifest' 
           ? 'Invalid frame configuration. Please verify your manifest.' 
-          : result.reason === 'rejected_by_user'
+          : result?.reason === 'rejected_by_user'
           ? 'Frame addition was rejected by user'
           : 'Failed to add frame';
         console.error('❌ Add Frame Error:', {
-          reason: result.reason,
+          reason: result?.reason,
           message: errorMessage
         });
         onError?.(errorMessage);
