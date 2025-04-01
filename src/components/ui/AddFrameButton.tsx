@@ -27,17 +27,78 @@ export function AddFrameButton({ onSuccess, onError }: AddFrameButtonProps) {
   }, []);
 
   const handleAddFrame = useCallback(async () => {
+    console.log('🔍 Starting frame addition process...');
+    
     try {
+      // 1. Verify frame context is initialized
+      const context = await sdk.context;
+      console.log('📱 Checking frame context...', {
+        context,
+        clientInfo: context?.client
+      });
+
+      if (!context?.client) {
+        const error = 'Frame context not initialized';
+        console.error('❌ Context Error:', error);
+        onError?.(error);
+        return;
+      }
+
+      // 2. Verify manifest is accessible
+      console.log('📄 Checking manifest accessibility...');
+      try {
+        const manifestResponse = await fetch('/.well-known/farcaster.json');
+        console.log('📄 Manifest response:', {
+          status: manifestResponse.status,
+          ok: manifestResponse.ok
+        });
+
+        if (!manifestResponse.ok) {
+          const error = 'Unable to access frame manifest';
+          console.error('❌ Manifest Error:', error);
+          onError?.(error);
+          return;
+        }
+
+        const manifest = await manifestResponse.json();
+        console.log('📄 Manifest content:', manifest);
+
+        if (!manifest.frame || !manifest.accountAssociation) {
+          const error = 'Invalid manifest structure';
+          console.error('❌ Manifest Structure Error:', error);
+          onError?.(error);
+          return;
+        }
+      } catch (manifestError) {
+        console.error('❌ Manifest Check Error:', manifestError);
+        onError?.('Error checking frame manifest');
+        return;
+      }
+
+      // 3. Attempt to add frame
+      console.log('➕ Attempting to add frame...');
       const result = await sdk.actions.addFrame() as AddFrameResult;
+      console.log('✨ Add frame result:', result);
       
       if (!result.added) {
         const errorMessage = result.reason === 'invalid_domain_manifest' 
-          ? 'Invalid frame configuration' 
-          : 'Frame addition was rejected';
+          ? 'Invalid frame configuration. Please verify your manifest.' 
+          : result.reason === 'rejected_by_user'
+          ? 'Frame addition was rejected by user'
+          : 'Failed to add frame';
+        console.error('❌ Add Frame Error:', {
+          reason: result.reason,
+          message: errorMessage
+        });
         onError?.(errorMessage);
         return;
       }
 
+      // 4. Success handling
+      console.log('✅ Frame added successfully!', {
+        hasNotifications: !!result.notificationDetails
+      });
+      
       setIsAdded(true);
       localStorage.setItem('frameAdded', 'true');
       if (result.notificationDetails) {
@@ -46,8 +107,10 @@ export function AddFrameButton({ onSuccess, onError }: AddFrameButtonProps) {
         onSuccess?.();
       }
     } catch (error) {
-      onError?.('Failed to add frame');
-      console.error('Error adding frame:', error);
+      // 5. Detailed error logging
+      console.error('❌ Unexpected Error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add frame';
+      onError?.(errorMessage);
     }
   }, [onSuccess, onError]);
 
@@ -64,4 +127,4 @@ export function AddFrameButton({ onSuccess, onError }: AddFrameButtonProps) {
       {isAdded ? 'Frame Added' : 'Add Frame'}
     </button>
   );
-} 
+}
