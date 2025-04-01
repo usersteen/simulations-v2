@@ -19,126 +19,66 @@ interface AddFrameButtonProps {
 
 export function AddFrameButton({ onSuccess, onError }: AddFrameButtonProps) {
   const [isAdded, setIsAdded] = useState(false);
+  const [isFrameContext, setIsFrameContext] = useState(false);
   
-  // Check localStorage on mount
+  // Check if we're in a frame context and localStorage on mount
   useEffect(() => {
-    const added = localStorage.getItem('frameAdded') === 'true';
-    setIsAdded(added);
+    const checkContext = async () => {
+      try {
+        const context = await sdk.context;
+        setIsFrameContext(!!context?.client);
+        
+        // Only check localStorage if we're in a frame context
+        if (context?.client) {
+          const added = localStorage.getItem('frameAdded') === 'true';
+          setIsAdded(added);
+        }
+      } catch (error) {
+        console.log('Not in frame context');
+        setIsFrameContext(false);
+      }
+    };
+    
+    checkContext();
   }, []);
 
   const handleAddFrame = useCallback(async () => {
-    console.log('🔍 Starting frame addition process...', {
-      currentUrl: window.location.href,
-      currentHostname: window.location.hostname,
-      currentProtocol: window.location.protocol
-    });
-    
+    if (!isFrameContext) {
+      console.log('Cannot add frame outside of frame context');
+      return;
+    }
+
     try {
-      // 1. Verify frame context is initialized
-      const context = await sdk.context;
-      console.log('📱 Checking frame context...', {
-        context,
-        clientInfo: context?.client
-      });
-
-      if (!context?.client) {
-        const error = 'Frame context not initialized';
-        console.error('❌ Context Error:', error);
-        onError?.(error);
-        return;
-      }
-
-      // 2. Verify manifest is accessible
-      console.log('📄 Checking manifest accessibility...');
-      try {
-        const manifestUrl = `${window.location.origin}/.well-known/farcaster.json`;
-        console.log('📄 Attempting to fetch manifest from:', manifestUrl);
-        const manifestResponse = await fetch(manifestUrl);
-        console.log('📄 Manifest response:', {
-          status: manifestResponse.status,
-          ok: manifestResponse.ok,
-          url: manifestResponse.url
-        });
-
-        if (!manifestResponse.ok) {
-          const error = 'Unable to access frame manifest';
-          console.error('❌ Manifest Error:', error);
-          onError?.(error);
-          return;
-        }
-
-        const manifest = await manifestResponse.json();
-        console.log('📄 Manifest content:', manifest);
-
-        // Add validation for domain match
-        const currentDomain = window.location.hostname;
-        console.log('📄 Validating domains:', {
-          currentDomain,
-          manifestDomain: manifest.frame.homeUrl
-        });
-
-        if (!manifest.frame || !manifest.accountAssociation) {
-          const error = 'Invalid manifest structure';
-          console.error('❌ Manifest Structure Error:', error);
-          onError?.(error);
-          return;
-        }
-      } catch (manifestError) {
-        console.error('❌ Manifest Check Error:', manifestError);
-        onError?.('Error checking frame manifest');
-        return;
-      }
-
-      // 3. Attempt to add frame
-      console.log('➕ Attempting to add frame...');
-      let result;
-      try {
-        result = await sdk.actions.addFrame() as AddFrameResult;
-        console.log('✨ Add frame result:', result);
-      } catch (addFrameError) {
-        console.log('⚠️ Add frame returned error but may have succeeded:', addFrameError);
-        // Check localStorage to see if we previously recorded this frame as added
-        const wasAdded = localStorage.getItem('frameAdded') === 'true';
-        if (wasAdded) {
-          console.log('✅ Frame was previously added, ignoring error');
-          return;
-        }
-        throw addFrameError; // Re-throw if we haven't recorded this frame as added
-      }
+      const result = await sdk.actions.addFrame() as AddFrameResult;
+      console.log('Add frame result:', result);
       
-      if (!result?.added) {
+      if (result?.added) {
+        setIsAdded(true);
+        localStorage.setItem('frameAdded', 'true');
+        if (result.notificationDetails) {
+          onSuccess?.(result.notificationDetails);
+        } else {
+          onSuccess?.();
+        }
+      } else {
         const errorMessage = result?.reason === 'invalid_domain_manifest' 
           ? 'Invalid frame configuration. Please verify your manifest.' 
           : result?.reason === 'rejected_by_user'
-          ? 'Frame addition was rejected by user'
+          ? 'Frame addition was rejected'
           : 'Failed to add frame';
-        console.error('❌ Add Frame Error:', {
-          reason: result?.reason,
-          message: errorMessage
-        });
         onError?.(errorMessage);
-        return;
-      }
-
-      // 4. Success handling
-      console.log('✅ Frame added successfully!', {
-        hasNotifications: !!result.notificationDetails
-      });
-      
-      setIsAdded(true);
-      localStorage.setItem('frameAdded', 'true');
-      if (result.notificationDetails) {
-        onSuccess?.(result.notificationDetails);
-      } else {
-        onSuccess?.();
       }
     } catch (error) {
-      // 5. Detailed error logging
-      console.error('❌ Unexpected Error:', error);
+      console.error('Error adding frame:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to add frame';
       onError?.(errorMessage);
     }
-  }, [onSuccess, onError]);
+  }, [isFrameContext, onSuccess, onError]);
+
+  // Don't render the button if we're not in a frame context
+  if (!isFrameContext) {
+    return null;
+  }
 
   return (
     <button
