@@ -387,12 +387,12 @@ export default function Demo() {
                 {/* Token Icon */}
                 {coinDetails?.mediaContent?.previewImage?.medium && (
                   <div className="flex justify-center mb-8">
-                    <div className="relative w-[500px] h-[500px]">
+                    <div className="relative w-[100px] h-[100px]">
                       <Image
                         src={coinDetails.mediaContent.previewImage.medium}
                         alt={coinDetails.name || 'Token Image'}
                         fill
-                        sizes="(max-width: 500px) 100vw, 500px"
+                        sizes="100px"
                         className="rounded-lg object-cover"
                         priority
                         unoptimized
