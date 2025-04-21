@@ -24,24 +24,24 @@ export async function fetchCoinDetails(address: `0x${string}`, chainId = DEFAULT
     const coin = response?.data?.zora20Token;
     if (!coin) return null;
 
-    // Transform the response to match the expected structure
+    // Transform the response to match the structure expected by Demo.tsx
     const transformedCoin = {
       ...coin,
       mediaContent: {
         previewImage: {
-          small: coin.mediaContent?.previewImage?.small || coin.mediaContent?.originalUri || '',
-          medium: coin.mediaContent?.previewImage?.medium || coin.mediaContent?.originalUri || '',
+          small: coin.mediaContent?.originalUri || '',
+          medium: coin.mediaContent?.originalUri || '',
           large: coin.mediaContent?.originalUri || '',
-          blurhash: coin.mediaContent?.previewImage?.blurhash || undefined
+          blurhash: coin.mediaContent?.previewImage?.blurhash
         }
       }
     };
 
-    // Log the transformed response for debugging
+    // Log for debugging
     console.log('Transformed Zora Response:', {
-      coin: transformedCoin,
-      mediaContent: transformedCoin.mediaContent,
-      previewImage: transformedCoin.mediaContent?.previewImage
+      originalMediaContent: coin.mediaContent,
+      transformedMediaContent: transformedCoin.mediaContent,
+      originalUri: coin.mediaContent?.originalUri
     });
 
     return transformedCoin;
