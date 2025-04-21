@@ -341,10 +341,11 @@ export default function Demo() {
           >
             <Image 
               src={coinDetails.mediaContent.previewImage.medium} 
-              alt={coinDetails.name}
+              alt={coinDetails.name || 'Token Image'}
               width={600}
               height={600}
               className="max-w-[600px] object-contain"
+              unoptimized
             />
           </div>
         </div>
@@ -384,20 +385,19 @@ export default function Demo() {
             <div className="flex-1 overflow-auto flex items-center">
               <div className="w-full py-16 px-4">
                 {/* Token Icon */}
-                {coinDetails?.mediaContent?.previewImage?.small && (
+                {coinDetails?.mediaContent?.previewImage?.medium && (
                   <div className="flex justify-center mb-8">
-                    {coinDetails?.mediaContent?.previewImage?.medium && (
-                      <div className="relative w-[500px] h-[500px]">
-                        <Image
-                          src={coinDetails.mediaContent.previewImage.medium}
-                          alt={coinDetails.name}
-                          fill
-                          sizes="(max-width: 500px) 100vw, 500px"
-                          className="rounded-lg object-cover"
-                          priority
-                        />
-                      </div>
-                    )}
+                    <div className="relative w-[500px] h-[500px]">
+                      <Image
+                        src={coinDetails.mediaContent.previewImage.medium}
+                        alt={coinDetails.name || 'Token Image'}
+                        fill
+                        sizes="(max-width: 500px) 100vw, 500px"
+                        className="rounded-lg object-cover"
+                        priority
+                        unoptimized
+                      />
+                    </div>
                   </div>
                 )}
 
