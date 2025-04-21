@@ -21,14 +21,31 @@ export async function fetchCoinDetails(address: `0x${string}`, chainId = DEFAULT
       chain: chainId 
     });
 
-    // Log the full response for debugging
-    console.log('Zora API Response:', {
-      coin: response?.data?.zora20Token,
-      mediaContent: response?.data?.zora20Token?.mediaContent,
-      previewImage: response?.data?.zora20Token?.mediaContent?.previewImage
+    const coin = response?.data?.zora20Token;
+    if (!coin) return null;
+
+    // Transform the response to match the expected structure
+    const transformedCoin = {
+      ...coin,
+      mediaContent: {
+        previewImage: {
+          small: coin.mediaContent?.previewImage?.small || coin.mediaContent?.originalUri,
+          medium: coin.mediaContent?.previewImage?.medium || coin.mediaContent?.originalUri,
+          large: coin.mediaContent?.originalUri,
+          blurhash: coin.mediaContent?.previewImage?.blurhash
+        },
+        animation: coin.mediaContent?.animation
+      }
+    };
+
+    // Log the transformed response for debugging
+    console.log('Transformed Zora Response:', {
+      coin: transformedCoin,
+      mediaContent: transformedCoin.mediaContent,
+      previewImage: transformedCoin.mediaContent?.previewImage
     });
 
-    return response?.data?.zora20Token || null;
+    return transformedCoin;
   } catch (error) {
     console.error("Error fetching coin details:", error);
     throw error;
