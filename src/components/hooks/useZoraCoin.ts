@@ -21,9 +21,10 @@ interface ZoraApiResponse {
   }>;
   mediaContent?: {
     previewImage?: {
-      small?: string;
-      medium?: string;
+      small: string;
+      medium: string;
       large?: string;
+      blurhash?: string;
     };
     animation?: {
       url?: string;
@@ -48,9 +49,10 @@ interface CoinDetails {
   }>;
   mediaContent?: {
     previewImage?: {
-      small?: string;
-      medium?: string;
+      small: string;
+      medium: string;
       large?: string;
+      blurhash?: string;
     };
     animation?: {
       url?: string;

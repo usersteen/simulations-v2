@@ -1,11 +1,9 @@
 import { getCoin, tradeCoin, getOnchainCoinDetails as getZoraOnchainCoinDetails, type OnchainCoinDetails } from '@zoralabs/coins-sdk';
 import { type WalletClient, type PublicClient } from 'viem';
+import { base } from 'viem/chains';
 
 // Re-export the type from the SDK
 export type { OnchainCoinDetails } from '@zoralabs/coins-sdk';
-
-// TODO: Set your API key if you have one
-// setApiKey("your-api-key");
 
 // Your platform referrer address - this is where platform fees will go
 const PLATFORM_REFERRER = "0x904AC5620dcEa44bC620a55B787b784C489b4cd1" as `0x${string}`;
@@ -13,10 +11,23 @@ const PLATFORM_REFERRER = "0x904AC5620dcEa44bC620a55B787b784C489b4cd1" as `0x${s
 // Default slippage tolerance (2.5%)
 const DEFAULT_SLIPPAGE = 0.025;
 
-export async function fetchCoinDetails(address: `0x${string}`, chainId = 8453) {
+// Default chain is Base
+const DEFAULT_CHAIN = base.id;
+
+export async function fetchCoinDetails(address: `0x${string}`, chainId = DEFAULT_CHAIN) {
   try {
-    const response = await getCoin({ address, chain: chainId });
-    console.log('Zora API Response:', JSON.stringify(response?.data?.zora20Token, null, 2));
+    const response = await getCoin({ 
+      address, 
+      chain: chainId 
+    });
+
+    // Log the full response for debugging
+    console.log('Zora API Response:', {
+      coin: response?.data?.zora20Token,
+      mediaContent: response?.data?.zora20Token?.mediaContent,
+      previewImage: response?.data?.zora20Token?.mediaContent?.previewImage
+    });
+
     return response?.data?.zora20Token || null;
   } catch (error) {
     console.error("Error fetching coin details:", error);
@@ -28,7 +39,7 @@ export async function fetchOnchainCoinDetails(
   address: `0x${string}`,
   userAddress: `0x${string}` | undefined,
   publicClient: PublicClient,
-  chainId = 8453
+  chainId = DEFAULT_CHAIN
 ): Promise<OnchainCoinDetails> {
   try {
     console.log('Fetching onchain details for:', {
@@ -41,6 +52,7 @@ export async function fetchOnchainCoinDetails(
       coin: address,
       user: userAddress,
       publicClient
+      // Note: chain parameter is not supported in the current SDK type
     });
     
     console.log('Onchain details response:', response);

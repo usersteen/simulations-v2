@@ -386,15 +386,18 @@ export default function Demo() {
                 {/* Token Icon */}
                 {coinDetails?.mediaContent?.previewImage?.small && (
                   <div className="flex justify-center mb-8">
-                    <div className="w-20 h-20 overflow-hidden">
-                      <Image 
-                        src={coinDetails.mediaContent.previewImage.small} 
-                        alt={coinDetails.name}
-                        width={96}
-                        height={96}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
+                    {coinDetails?.mediaContent?.previewImage?.medium && (
+                      <div className="relative w-[500px] h-[500px]">
+                        <Image
+                          src={coinDetails.mediaContent.previewImage.medium}
+                          alt={coinDetails.name}
+                          fill
+                          sizes="(max-width: 500px) 100vw, 500px"
+                          className="rounded-lg object-cover"
+                          priority
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 

@@ -2,15 +2,36 @@
 
 A Farcaster Frames v2 implementation showcasing interactive frame capabilities with Zora integration.
 
-## What are Farcaster Frames?
+## Documentation
 
-Farcaster Frames are interactive elements that can be embedded in Farcaster posts (casts). They allow users to interact with decentralized applications (dApps) directly within the Farcaster client. Frames v2 introduces enhanced capabilities including:
+Detailed documentation is split into separate files for better organization:
 
-- Direct wallet interactions
-- Rich user context
-- Interactive UI elements
-- Frame notifications
-- External URL handling
+- [Farcaster Integration](./docs/FARCASTER.md) - Details on Frame v2 implementation and features
+- [Zora Integration](./docs/ZORA.md) - Documentation for Zora SDK integration and trading features
+
+## Authentication Flow
+
+The app uses Sign in with Farcaster (SIWF) to authenticate users and connect their wallet for Zora transactions:
+
+1. When a user interacts with the frame, the app requests SIWF credentials using `sdk.actions.signIn()`
+2. The SIWF message and signature are verified on the server
+3. Once authenticated, the user's Farcaster identity is used to:
+   - Connect their wallet for Zora transactions
+   - Track trading history
+   - Enable frame notifications
+
+This authentication flow ensures secure token trading while maintaining a seamless user experience within the Farcaster client.
+
+## How It Works
+
+This app combines Farcaster Frames v2 with Zora's SDK to create an interactive token trading experience:
+
+1. Users interact with the Frame through Farcaster clients
+2. Frame interactions trigger token trading interfaces
+3. Zora SDK handles token operations and pricing
+4. Wallet connections manage transaction signing
+
+See individual documentation files for detailed implementation specifics.
 
 ## 🛠️ Core Components
 
@@ -32,7 +53,7 @@ The project uses `@farcaster/frame-sdk` and related packages which provide:
   "@radix-ui/react-label": "^2.1.1",
   "@tanstack/react-query": "^5.61.0",
   "@upstash/redis": "^1.34.3",
-  "@zoralabs/coins-sdk": "0.0.2-sdkalpha.7",
+  "@zoralabs/coins-sdk": "latest",
   "next": "15.0.3",
   "wagmi": "^2.14.12",
   "viem": "^2.23.6"
@@ -63,10 +84,10 @@ src/
 
 ### 2. Zora Integration
 Currently implemented features:
-- Basic token information fetching
-- Buy/Sell functionality
-- Price impact protection
-- Error handling
+- Token information fetching with optimized images
+- Buy/Sell functionality with slippage protection
+- Price impact protection and error handling
+- Image optimization with blurhash and Next.js
 
 ### 3. Wallet Integration
 Implemented via Wagmi:
@@ -236,6 +257,12 @@ graph TD
    - Confirm chain configuration
    - Check wallet compatibility
    - Verify network status
+   
+4. Image loading issues
+   - Check mediaContent structure in API response
+   - Verify image URLs are accessible
+   - Confirm Next.js Image component configuration
+   - Check if blurhash is available for optimization
 
 ## 📝 Implementation Examples
 
