@@ -140,7 +140,12 @@ export default function Demo() {
       const amountInWei = parseEther(buyAmount);
       await trade('buy', amountInWei, walletClient);
       setBuyAmount('');
-      getCoinInfo();
+      try {
+        await getCoinInfo();
+      } catch (refreshError) {
+        // Silently handle rate limit errors during refresh
+        console.log('Info refresh failed:', refreshError);
+      }
       handleSuccess();
     } catch (error) {
       console.error("Error buying coin:", error);
@@ -154,7 +159,12 @@ export default function Demo() {
       const amount = parseEther(sellAmount);
       await trade('sell', amount, walletClient);
       setSellAmount('');
-      getCoinInfo();
+      try {
+        await getCoinInfo();
+      } catch (refreshError) {
+        // Silently handle rate limit errors during refresh
+        console.log('Info refresh failed:', refreshError);
+      }
       handleSuccess();
     } catch (error) {
       console.error("Error selling coin:", error);
