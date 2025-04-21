@@ -142,7 +142,12 @@ export function useZoraCoin(coinAddress: `0x${string}`): UseZoraCoinReturn {
       setOnchainDetails(onchainData);
     } catch (err) {
       console.error('Error in getCoinInfo:', err);
-      setError(err instanceof Error ? err : new Error('Unknown error'));
+      // Don't set error state for rate limit errors
+      if (err instanceof Error && err.message.includes('rate limit')) {
+        console.log('Rate limit error, ignoring:', err);
+      } else {
+        setError(err instanceof Error ? err : new Error('Unknown error'));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -171,7 +176,12 @@ export function useZoraCoin(coinAddress: `0x${string}`): UseZoraCoinReturn {
       );
       
       // Refresh coin info after trade
-      await getCoinInfo();
+      try {
+        await getCoinInfo();
+      } catch (refreshError) {
+        // Silently handle rate limit errors during refresh
+        console.log('Info refresh failed:', refreshError);
+      }
       
       return result;
     } catch (err) {
