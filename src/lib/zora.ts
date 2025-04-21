@@ -29,12 +29,11 @@ export async function fetchCoinDetails(address: `0x${string}`, chainId = DEFAULT
       ...coin,
       mediaContent: {
         previewImage: {
-          small: coin.mediaContent?.previewImage?.small || coin.mediaContent?.originalUri,
-          medium: coin.mediaContent?.previewImage?.medium || coin.mediaContent?.originalUri,
-          large: coin.mediaContent?.originalUri,
-          blurhash: coin.mediaContent?.previewImage?.blurhash
-        },
-        animation: coin.mediaContent?.animation
+          small: coin.mediaContent?.previewImage?.small || coin.mediaContent?.originalUri || '',
+          medium: coin.mediaContent?.previewImage?.medium || coin.mediaContent?.originalUri || '',
+          large: coin.mediaContent?.originalUri || '',
+          blurhash: coin.mediaContent?.previewImage?.blurhash || undefined
+        }
       }
     };
 
